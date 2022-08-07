@@ -4,6 +4,7 @@ import pandas as pd
 import json
 from django.core.serializers.json import DjangoJSONEncoder
 from datetime import *
+import numpy as np
 
 # Create your views here.
 from crontab.cron import *
@@ -52,7 +53,7 @@ def getHotTop10Stocks(request):
 #values做分组
 #annotate,aggregate做聚合
 def getLimitupStocks(request):
-    limitup_stocks_pool = LimitupStocks.objects.values('Name').\
+    limitup_stocks_pool = LimitupStocks.objects.filter(Date__gte=datetime.today()-timedelta(days=1)).values('Name').\
     annotate(_Reason_type=GroupConcat('Reason_type')).values('Name', 'Latest', 'Currency_value', '_Reason_type', 'Limitup_type', 'High_days', 'Change_rate')
     return HttpResponse(json.dumps(list(limitup_stocks_pool),ensure_ascii=False))
 
@@ -68,3 +69,17 @@ def getConceptStocks(request):
         chart.append(list_limitup_stock_pool)
     # return HttpResponse(json.dumps(list(limitup_stocks_pool),cls=DjangoJSONEncoder,ensure_ascii=False))
     return HttpResponse(json.dumps(chart,cls=DjangoJSONEncoder,ensure_ascii=False))
+
+#获取所有股票信息
+def getAllSecurities(request):
+    all_stocks_name = Securities.objects.values('value','code') 
+    return HttpResponse(json.dumps(list(all_stocks_name),ensure_ascii=False))
+
+#获取单只股票数据
+def getCandlestick(request,code):
+    jq.auth('17521718347','Zb110110')
+    candlestick_df = jq.get_price(code,end_date=datetime.today().strftime('%Y-%m-%d'))
+    candlestick_df.drop(columns='money',inplace=True)
+    candlestick_df.reset_index(inplace=True)
+    # candlestick_df.rename(columns={'index','date'},inplace=True)
+    return HttpResponse(json.dumps(np.array(candlestick_df).tolist(),cls=DjangoJSONEncoder,ensure_ascii=False))

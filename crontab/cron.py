@@ -7,6 +7,7 @@ from datetime import datetime
 import pandas as pds
 import requests as rq
 from tangying.common import getSqliteEngine
+import jqdatasdk as jq
 
 class HotRankStocks:
     def __init__(self):
@@ -142,7 +143,7 @@ def hotStocks2Sqlite():
 
         hot_stocks_df = hot_stocks.getHotStocksDataFrame()
         engine = getSqliteEngine()
-        print("insert success rows:",hot_stocks_df.to_sql("hotstocks",engine,index=False,if_exists="append"))
+        hot_stocks_df.to_sql("hotstocks",engine,index=False,if_exists="append")
     except Exception as e:
         print("err:",e)
         # if "conn" in dir():
@@ -169,9 +170,15 @@ def limitupStocks2Sqlite():
         new_limitup_stocks_df = pds.DataFrame(rows,columns=limitup_stocks.stocks_head).reset_index(drop=True)
    
         engine = getSqliteEngine()
-        print("insert success rows:",new_limitup_stocks_df.to_sql("limitupstocks",engine,index=False,if_exists="append"))
+        new_limitup_stocks_df.to_sql("limitupstocks",engine,index=False,if_exists="append")
     except Exception as e:
         print(e)
 
+def allSecurities2Sqlite():
+    jq.auth('17521718347','Zb110110')
+    all_stocks = jq.get_all_securities(types=['stock'], date=None).drop(columns=['start_date', 'end_date','type'])
+    all_stocks.rename(columns={'display_name':'value'},inplace=True)
+    engine = getSqliteEngine()
+    all_stocks.to_sql("securities",engine,index_label='code',if_exists="append")
 
 

@@ -6,4 +6,6 @@ urlpatterns = [
     path('hot10_stocks/', getHotTop10Stocks),
     path('limitup_stocks/', getLimitupStocks),
     path('concept_stocks/', getConceptStocks),
+    path('all_securities/', getAllSecurities),
+    path('candlestick/<code>/', getCandlestick),
 ]

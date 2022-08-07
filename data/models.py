@@ -27,3 +27,11 @@ class LimitupStocks(models.Model):
 
     class Meta:
         db_table = 'limitupstocks'
+
+class Securities(models.Model):
+    code = models.CharField('股票代码',max_length=16)
+    value = models.CharField('中文名称',max_length=8)
+    name = models.CharField('缩写简称',max_length=8)
+
+    class Meta:
+        db_table = 'securities'

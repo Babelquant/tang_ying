@@ -134,4 +134,5 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CRONJOBS = (
     ('*/20 08-17 * * *', 'crontab.cron.hotStocks2Sqlite', '>>~/cron.log'),
     ('05 15 * * *', 'crontab.cron.limitupStocks2Sqlite', '>>~/cron.log'),
+    ('0 0 1 */1 *', 'crontab.cron.allSecurities2Sqlite', '>>~/cron.log'),
 )
