@@ -3,17 +3,21 @@ scrape hot stocks
 """
 
 import json,time,os,math
-from datetime import datetime
-import pandas as pds
+import pandas as pd
 import requests as rq
 from tangying.common import getSqliteEngine
 import jqdatasdk as jq
+from data.models import *
+from datetime import *
+from django.db.models import Count
+import akshare as ak
 
 class HotRankStocks:
     def __init__(self):
         self.url = "https://eq.10jqka.com.cn/open/api/hot_list/v1/hot_stock/a/hour/data.txt"
         self.stocks_head = ['Name','Rank','Change','Concept','Popularity','Express','Time']
-        self.date = time.strftime('%m-%d',time.localtime(time.time()))
+        # self.date = time.strftime('%m-%d',time.localtime(time.time()))
+        self.date = datetime.today().strftime("%m-%d")
         self.header ={
             'Host': 'eq.10jqka.com.cn',
             'Connection': 'keep-alive',
@@ -34,7 +38,7 @@ class HotRankStocks:
         hot_list = parseHotStockPackage(rsp_body)
    
         #返回股票热度榜表单
-        return pds.DataFrame(data=hot_list,columns=self.stocks_head) 
+        return pd.DataFrame(data=hot_list,columns=self.stocks_head) 
 
     #获取热度榜所有股票，返回list
     def getHotStocksList(self):
@@ -50,7 +54,8 @@ class LimitUpStocks:
         self.url = "https://data.10jqka.com.cn/dataapi/limit_up/limit_up_pool"
         self.stocks_head = ['Name', 'Code', 'Latest', 'Currency_value', 'Reason_type', 'Limitup_type', 'High_days', 'Change_rate', 'Date']
         self.reason_head = ['涨停股票数','占比','相关股票']
-        self.date = time.strftime('%m-%d',time.localtime(time.time()))
+        # self.date = time.strftime('%m-%d',time.localtime(time.time()))
+        self.date = datetime.today().strftime("%m-%d")
         self.header = {
                 'Host': 'data.10jqka.com.cn',
                 'Connection': 'keep-alive',
@@ -88,11 +93,11 @@ class LimitUpStocks:
             one_page_data.extend(parseLimitUpStockPackage(rsp.json()))        
 
         #返回股票详情表单
-        self.limit_up_stocks = pds.DataFrame(data=one_page_data,columns=self.stocks_head)
+        self.limit_up_stocks = pd.DataFrame(data=one_page_data,columns=self.stocks_head)
         return self.limit_up_stocks
         
         #涨停原因表单
-        return pds.DataFrame(data=reason_type,columns=self.reason_head)
+        return pd.DataFrame(data=reason_type,columns=self.reason_head)
 
 #解析热度榜数据包
 def parseHotStockPackage(body):
@@ -117,9 +122,9 @@ def parseLimitUpStockPackage(body):
         # print(infos)
         for info in infos:
             #ctx.log.warn("stock name:%s"%info['name'])
-            row = [ info['name'],info['code'],info['latest'],info['currency_value']/100000000,\
+            row = [ info['name'],info['code'],info['latest'],int(info['currency_value']/100000000),\
                     info['reason_type'],info['limit_up_type'],info['high_days'],\
-                    info['change_rate'],date ]
+                    str(int(info['change_rate']))+"%",date ]
             rows.append(row)
         return rows
 
@@ -166,8 +171,9 @@ def limitupStocks2Sqlite():
                 # row.loc['Reason_type'] = reason
                 new_row = row.copy()
                 new_row.Reason_type = reason
+                new_row.Date = new_row.Date.strftime('%Y-%m-%d')
                 rows.append(new_row)
-        new_limitup_stocks_df = pds.DataFrame(rows,columns=limitup_stocks.stocks_head).reset_index(drop=True)
+        new_limitup_stocks_df = pd.DataFrame(rows,columns=limitup_stocks.stocks_head).reset_index(drop=True)
    
         engine = getSqliteEngine()
         new_limitup_stocks_df.to_sql("limitupstocks",engine,index=False,if_exists="append")
@@ -176,9 +182,24 @@ def limitupStocks2Sqlite():
 
 def allSecurities2Sqlite():
     jq.auth('17521718347','Zb110110')
-    all_stocks = jq.get_all_securities(types=['stock'], date=None).drop(columns=['start_date', 'end_date','type'])
-    all_stocks.rename(columns={'display_name':'value'},inplace=True)
-    engine = getSqliteEngine()
-    all_stocks.to_sql("securities",engine,index_label='code',if_exists="append")
+    all_stocks = jq.get_all_securities(types=['stock'], date=None).drop(columns=['start_date', 'end_date','type','name'])
+    all_stocks.reset_index(inplace=True)
+    all_stocks.rename(columns={'display_name':'name','index':'code'},inplace=True)
 
+    engine = getSqliteEngine()
+    # print(all_stocks)
+    all_stocks.to_sql("securities",engine,index_label='id',if_exists="replace")   
+    # print(engine.execute("SELECT * FROM securities").fetchall())
+
+def allConcept2Sqlite():
+    #获取概念
+    stock_board_concept_name_ths_df = ak.stock_board_concept_name_ths()[['概念名称','代码']]
+    stock_board_concept_name_ths_df.rename(columns={'概念名称':'name','代码':'code'},inplace=True)
+    #获取行业
+    stock_board_industry_name_ths_df = ak.stock_board_industry_name_ths()
+    #合并
+    stock_board_name_ths_df = pd.concat([stock_board_concept_name_ths_df,stock_board_industry_name_ths_df])
+    stock_board_name_ths_df.drop_duplicates(subset=['code'],inplace=True)
+    engine = getSqliteEngine()
+    stock_board_name_ths_df.to_sql("concepts",engine,index_label='id',if_exists="replace")
 
