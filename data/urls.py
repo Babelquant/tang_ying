@@ -8,6 +8,8 @@ urlpatterns = [
     path('hot10_stocks/', getHotTop10Stocks),
     #获取当日涨停股票
     path('limitup_stocks/', getLimitupStocks),
+    #上板情况
+    path('limitup_statistic/', limitupStatistic),
     #获取概念分析数据
     path('concept_statistic/', conceptStatistic),
     #获取所有股票信息

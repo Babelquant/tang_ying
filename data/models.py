@@ -30,7 +30,7 @@ class LimitupStocks(models.Model):
 
 class Securities(models.Model):
     code = models.CharField('股票代码',max_length=16)
-    name = models.CharField('中文名称',max_length=8)
+    value = models.CharField('中文名称',max_length=8)
     # name_v = models.CharField('缩写简称',max_length=8)
 
     class Meta:

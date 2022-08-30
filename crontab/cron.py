@@ -6,7 +6,6 @@ import json,time,os,math
 import pandas as pd
 import requests as rq
 from tangying.common import getSqliteEngine
-import jqdatasdk as jq
 from data.models import *
 from datetime import *
 from django.db.models import Count
@@ -181,14 +180,15 @@ def limitupStocks2Sqlite():
         print(e)
 
 def allSecurities2Sqlite():
-    jq.auth('17521718347','Zb110110')
-    all_stocks = jq.get_all_securities(types=['stock'], date=None).drop(columns=['start_date', 'end_date','type','name'])
-    all_stocks.reset_index(inplace=True)
-    all_stocks.rename(columns={'display_name':'name','index':'code'},inplace=True)
+    stock_sh_a_spot_em_df = ak.stock_sh_a_spot_em()[['代码','名称']]
+    stock_sz_a_spot_em_df = ak.stock_sz_a_spot_em()[['代码','名称']]
+    stock_a_spot_em_df = pd.concat([ak.stock_sh_a_spot_em()[['代码','名称']],ak.stock_sz_a_spot_em()[['代码','名称']]])
+    stock_a_spot_em_df.rename(columns={'代码':'code','名称':'value'},inplace=True)
+    stock_a_spot_em_df.reset_index(drop=True)
 
     engine = getSqliteEngine()
     # print(all_stocks)
-    all_stocks.to_sql("securities",engine,index_label='id',if_exists="replace")   
+    stock_a_spot_em_df.to_sql("securities",engine,index_label='id',if_exists="replace")   
     # print(engine.execute("SELECT * FROM securities").fetchall())
 
 def allConcept2Sqlite():

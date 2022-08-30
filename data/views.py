@@ -6,9 +6,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from datetime import *
 from chinese_calendar import is_workday
 import numpy as np
-import jqdatasdk as jq
 import akshare as ak
-from jqdatasdk import get_factor_values
 from crontab.cron import *
 from django.http import HttpResponse
 from django.db.models import Aggregate,CharField,Count
@@ -134,21 +132,19 @@ def getSharpfallStrategy(request):
             continue
         last_price = getattr(row,'最新价')
         low_price = getattr(row,'最低')
+        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=beforDaysn(end,250), end_date=end)
         #近5日跌幅
-        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=beforDaysn(end,4), end_date=end)
-        five_day_high_price = stock_zh_a_hist_df.loc[0,'最高']
+        five_day_high_price = stock_zh_a_hist_df.tail().reset_index(drop=True).loc[0,'最高']
         five_day_drop_rate = (five_day_high_price-low_price)/five_day_high_price*100
         if five_day_drop_rate < 8:
             continue
         #月内最高价
-        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=beforDaysn(end,25), end_date=end)
-        a_month_high_price = stock_zh_a_hist_df.最高.max()
+        a_month_high_price = stock_zh_a_hist_df.tail(25).最高.max()
         #月内跌幅
         a_month_drop_rate = (a_month_high_price-last_price)/a_month_high_price*100
         #近半年最高价
-        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=beforDaysn(end,120), end_date=end)
         # print(stock_zh_a_hist_df)
-        half_year_high_price = stock_zh_a_hist_df.最高.max()
+        half_year_high_price = stock_zh_a_hist_df.tail(120).最高.max()
         #半年最高跌幅
         half_year_drop_rate = (half_year_high_price-last_price)/half_year_high_price*100
         #半年跌幅必须大于月内跌幅1.5倍
@@ -158,7 +154,6 @@ def getSharpfallStrategy(request):
         if a_month_drop_rate>18:
             stock_individual_info_em_df = ak.stock_individual_info_em(symbol=code)
             #年内最低价，去掉1个最小值
-            stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=beforDaysn(end,250), end_date=end)
             year_low_price = stock_zh_a_hist_df.nsmallest(2,'最低').最低.iloc[1]
             if year_low_price*0.8 < low_price and year_low_price*1.2 > low_price:
                 sharpfall = {
@@ -213,7 +208,7 @@ def conceptStrategyData(request,codes):
         return HttpResponse('err:',e)
 
     if win_stock_set == []:
-        return HttpResponse('err: no stocks.')
+        return HttpResponse(json.dumps([],cls=DjangoJSONEncoder,ensure_ascii=False))
     # concept_stocks = []
     if len(win_stock_set) == 1:
         origin_stocks = win_stock_set[0]
@@ -240,6 +235,7 @@ def conceptWinStocks(concept_code):
     # print(concept_code,'获取成分股：\n',stock_board_cons_ths_df)
     #获取每支股票最新价
     for _,row in stock_board_cons_ths_df.iterrows():
+        print(row.名称)
         stock_code = row.代码
         if stock_code.startswith('300'):
             continue
@@ -372,13 +368,32 @@ def limitupStrategyData(request):
             
     return HttpResponse(json.dumps(win_stocks,ensure_ascii=False))
 
+#涨停板统计分析
+def limitupStatistic(request):
+    head = [['High_days','Num','Date']]
+    #过滤本月数据
+    # data1 = LimitupStocks.objects.get(High_days__regex=r'(首|2|3).*').filter(Date__month=datetime.today().month).values('Name','Date').\
+    data = LimitupStocks.objects.filter(Date__month=datetime.today().month).values('Name','Date','High_days').distinct()
+    data_df = pd.DataFrame.from_records(data)
+    #df按多列分组
+    data_df['Num'] = data_df.groupby(['High_days','Date'])['Name'].transform('count')
+    data_df.drop(columns=['Name'],inplace=True)
+    data_df.drop_duplicates(ignore_index=True,inplace=True)
+    # print(data_df[data_df.Date=='2022-08-30'])
+    # data1 = data.values('Date','High_days').annotate(Num=Count('Name')).values_list('High_days','Num','Date').order_by('Date')
+    # print(pd.DataFrame.from_records(data1.filter(Date__gte='2022-08-28').values('Name','_Reason_type','Date','High_days')))
+    # print(pd.DataFrame.from_records(data))
+    for _,d in data_df.iterrows():
+        head.append([d.High_days,d.Num,d.Date.strftime('%m-%d')])
+    return HttpResponse(json.dumps(head,cls=DjangoJSONEncoder,ensure_ascii=False))
+
 #获取概念股统计数据
 def conceptStatistic(request):
     chart = [['Reason_type', 'Limitup_count','Relative_stocks','Date']]
     limitup_stocks_pool = LimitupStocks.objects.filter(Date__month=datetime.now().month).\
     values('Reason_type').annotate(Limitup_count=Count('Name'),Relative_stocks=GroupConcat('Name')).values_list('Reason_type', 'Limitup_count','Relative_stocks','Date').order_by('Date')
     for limitup_stock_pool in limitup_stocks_pool:  #返回值类型为元组
-        #拿到数据库中时间字符串二次加工已满足图表对时间格式的要求
+        #拿到数据库中时间字符串二次加工以满足图表对时间格式的要求
         list_limitup_stock_pool = list(limitup_stock_pool)
         list_limitup_stock_pool[3] = list_limitup_stock_pool[3].strftime('%Y-%m-%d')
         chart.append(list_limitup_stock_pool)
@@ -387,7 +402,7 @@ def conceptStatistic(request):
 
 #获取所有股票信息
 def getAllSecurities(request):
-    all_stocks_name = Securities.objects.values('name','code') 
+    all_stocks_name = Securities.objects.values('value','code') 
     #qs数据格式返回字典的列表方法:list
     return HttpResponse(json.dumps(list(all_stocks_name),ensure_ascii=False))
 
@@ -416,13 +431,11 @@ def getAllConcepts(request):
 
 #获取单只股票数据
 def getStockPrice(code):
-    jq.auth('17521718347','Zb110110')
-    candlestick_df = jq.get_price(code,start_date='2018-12-01',end_date=datetime.today().strftime('%Y-%m-%d'),panel=False)
-    candlestick_df.drop(columns='money',inplace=True)
-    candlestick_df_nona = candlestick_df.dropna()
-    candlestick_df_nona.reset_index(inplace=True)
+    today = datetime.today().strftime('%Y%m%d')
+    candlestick_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date="20181201", end_date=today, adjust="")
+    # candlestick_df_nona.reset_index(inplace=True)
 
-    return candlestick_df_nona
+    return candlestick_df.dropna()
 
 #搜索股票数据接口
 def getCandlestick(request,code):
