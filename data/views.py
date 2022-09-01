@@ -332,9 +332,12 @@ def isMonster(code,nearday=100,ratio=[1,1.5]):
 
 #涨停策略输出
 def limitupStrategyData(request):
+    LimitupStocks = queryLimitupStocks()
+    if LimitupStocks == None:
+        return HttpResponse(json.dumps([],ensure_ascii=False))
     now = datetime.now().strftime('%Y%m%d')
     #获取涨停池
-    last_limitup_stocks = queryLimitupStocks().values('Name', '_Reason_type', 'Latest', 'Limitup_type', 'High_days', 'Currency_value', 'Code')
+    last_limitup_stocks = LimitupStocks.values('Name', '_Reason_type', 'Latest', 'Limitup_type', 'High_days', 'Currency_value', 'Code')
     #策略选股
     win_stocks = []
     # all_stocks = Securities.objects.values('name','code')
@@ -379,6 +382,8 @@ def limitupStatistic(request):
     #过滤本月数据
     # data1 = LimitupStocks.objects.get(High_days__regex=r'(首|2|3).*').filter(Date__month=datetime.today().month).values('Name','Date').\
     data = LimitupStocks.objects.filter(Date__month=datetime.today().month).values('Name','Date','High_days').distinct()
+    if data.count() == 0:
+        return HttpResponse(json.dumps(head,cls=DjangoJSONEncoder,ensure_ascii=False))
     data_df = pd.DataFrame.from_records(data)
     #df按多列分组
     data_df['Num'] = data_df.groupby(['High_days','Date'])['Name'].transform('count')
@@ -452,5 +457,6 @@ def getCandlestick(request,code):
 def getNews(request):
     ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     js_news_df = ak.js_news(timestamp=ts)
+    print('news_count:',js_news_df.count())
     js_news_df.sort_index(ascending=False,inplace=True)
     return HttpResponse(json.dumps(js_news_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))

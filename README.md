@@ -4,6 +4,33 @@ tangying后端
 
 ## Installation
 
+## 安装sqlite3
+django启动报错：`django.core.exceptions.ImproperlyConfigured: SQLite 3.9.0 or later is required (found 3.7.17)`
+或：`django.db.utils.NotSupportedError: deterministic=True requires SQLite 3.8.3`
+
+1.官网下载高版本sqlite3安装包
+>wget https://sqlite.org/2022/sqlite-autoconf-3390200.tar.gz --no-check-certificate'
+
+2.编译安装
+
+> mkdir /usr/local/sqlite <br>
+./configure <br>
+make && make install 
+
+3.替换版本
+
+>mv /usr/bin/sqlite3 /usr/bin/sqlite3_bk<br>
+ln -s /usr/local/sqlite/sqlite3 /usr/bin/sqlite3
+
+4.添加环境变量,将新版本lib文件添加进环境
+
+> vim /etc/profile<br>
+#添加内容(路径根据sqlite库具体安装位置)
+export LD_LIBRARY_PATH="/usr/local/lib" <br>
+source /etc/profile
+
+`到此Linux环境中sqlite版本已更新`
+
 ### 安装Python3
 
 1. 下载安装包
@@ -52,32 +79,6 @@ tangying后端
 
 >pip install -r requirements.txt -i http://pypi.douban.com/simple --trusted-host pypi.douban.com
 
-## Python3安装sqlite3
-django启动报错：`django.core.exceptions.ImproperlyConfigured: SQLite 3.9.0 or later is required (found 3.7.17)`
-或：`django.db.utils.NotSupportedError: deterministic=True requires SQLite 3.8.3`
-
-1.官网下载高版本sqlite3安装包
-
-2.编译安装
-
-> mkdir /usr/local/sqlite <br>
-./configure <br>
-make && make install 
-
-3.替换版本
-
->mv /usr/bin/sqlite3 /usr/bin/sqlite3_bk<br>
-ln -s /usr/local/sqlite/sqlite3 /usr/bin/sqlite3
-
-4.添加环境变量,将新版本lib文件添加进环境
-
-> vim /etc/profile<br>
-#添加内容(路径根据sqlite库具体安装位置)
-export LD_LIBRARY_PATH="/usr/local/lib" <br>
-source /etc/profile
-
-`到此Linux环境中sqlite版本已更新`
-
 ## 切换到项目目录，创建数据模型
 >python manage.py makemigrations
 
@@ -113,6 +114,11 @@ source /etc/profile
     Applying auth.0012_alter_user_first_name_max_length... OK
     Applying data.0001_initial... OK
     Applying sessions.0001_initial... OK
+
+### 添加项目定时任务
+> python manage.py crontab add
+
+> python manage.py crontab show
 
 ### 安装nginx并配置
 1. 下载安装包，编译安装
