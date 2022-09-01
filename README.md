@@ -38,6 +38,8 @@ source /etc/profile
 2. 安装依赖
     >yum -y install zlib-devel bzip2-devel openssl-devel sqlite-devel gcc make
 
+    >yum -y groupinstall "Development tools"
+
 3. 编译安装
 
     修改安装配置/Module/Setup文件加载ssl模块，去掉以下注释
@@ -52,7 +54,7 @@ source /etc/profile
             -DUSE_SSL -I$(SSL)/include -I$(SSL)/include/openssl \
             -L$(SSL)/lib -lssl -lcrypto
     ```
-    >./configure <br>
+    >./configure LDFLAGS="-L/usr/local/sqlite3/lib" CPPFLAGS="-I /usr/local/sqlite3/include" LD_RUN_PATH=/usr/local/sqlite3/lib <br>
     make && make install
 
 ### 创建python3虚拟环境
@@ -126,28 +128,28 @@ make && make install
 
 2. 替换nginx.conf为以下内容
 
-    events {
-        worker_connections  1024;
-    }
-    http {
-        include       mime.types;
-        default_type  application/octet-stream;
-        sendfile        on;
-        server {
-            listen 80; # 这里nginx监听得是80端口,浏览器输入域名不需要加端口了就
-            server_name  127.0.0.1:80; #改为自己的域名，没域名修改为127.0.0.1:80
-            charset utf-8;
-            location / {
-            include uwsgi_params;
-            uwsgi_pass 127.0.0.1:8000;  #端口要和uwsgi里配置的一样
-            uwsgi_param UWSGI_SCRIPT tangying.wsgi;  #wsgi.py所在的目录名+.wsgi
-            uwsgi_param UWSGI_CHDIR /usr/local/tangying; #项目路径
-            }
-            location /static/ {
-            alias /usr/local/tangying/app/static/; #静态资源路径
+        events {
+            worker_connections  1024;
+        }
+        http {
+            include       mime.types;
+            default_type  application/octet-stream;
+            sendfile        on;
+            server {
+                listen 80; # 这里nginx监听得是80端口,浏览器输入域名不需要加端口了就
+                server_name  127.0.0.1:80; #改为自己的域名，没域名修改为127.0.0.1:80
+                charset utf-8;
+                location / {
+                include uwsgi_params;
+                uwsgi_pass 127.0.0.1:8000;  #端口要和uwsgi里配置的一样
+                uwsgi_param UWSGI_SCRIPT tangying.wsgi;  #wsgi.py所在的目录名+.wsgi
+                uwsgi_param UWSGI_CHDIR /usr/local/tangying; #项目路径
+                }
+                location /static/ {
+                alias /usr/local/tangying/app/static/; #静态资源路径
+                }
             }
         }
-    }
 
 3. 进入安装目录 执行 ./nginx -t 命令先检查配置文件是否有错，没有错就执行以下命令：./nginx，终端没有任何提示就证明nginx启动成功
 

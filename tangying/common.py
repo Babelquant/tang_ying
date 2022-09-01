@@ -19,12 +19,13 @@ def initBasicData():
     stock_a_spot_em_df.rename(columns={'代码':'code','名称':'value'},inplace=True)
     stock_a_spot_em_df.reset_index(drop=True)
 
-    stock_board_concept_name_ths_df = ak.stock_board_concept_name_ths()[['概念名称','代码']]
+    # stock_board_concept_name_ths_df = ak.stock_board_concept_name_ths()[['概念名称','代码']]
+    stock_board_concept_name_ths_df = ak.stock_board_concept_name_ths().loc[:,['概念名称','代码']]
     stock_board_concept_name_ths_df.rename(columns={'概念名称':'name','代码':'code'},inplace=True)
     stock_board_industry_name_ths_df = ak.stock_board_industry_name_ths()
     stock_board_name_ths_df = pd.concat([stock_board_concept_name_ths_df,stock_board_industry_name_ths_df])
     stock_board_name_ths_df.drop_duplicates(subset=['code'],inplace=True)
-    
+
     engine = getSqliteEngine()
     stock_board_name_ths_df.to_sql("concepts",engine,index_label='id',if_exists="replace")
     stock_a_spot_em_df.to_sql("securities",engine,index_label='id',if_exists="replace")   
