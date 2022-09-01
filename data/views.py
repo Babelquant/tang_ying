@@ -7,7 +7,7 @@ from datetime import *
 from chinese_calendar import is_workday
 import numpy as np
 import akshare as ak
-from crontab.cron import *
+from data.cron import *
 from django.http import HttpResponse
 from django.db.models import Aggregate,CharField,Count
 
