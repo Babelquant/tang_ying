@@ -54,7 +54,6 @@ statsmodels==0.13.2
 tabulate==0.8.10
 thriftpy2==0.4.14
 tqdm==4.64.0
-tushare==1.2.85
 url-normalize==1.4.3
 urllib3==1.26.11
 webencodings==0.5.1
