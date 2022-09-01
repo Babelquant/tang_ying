@@ -77,3 +77,79 @@ export LD_LIBRARY_PATH="/usr/local/lib" <br>
 source /etc/profile
 
 `到此Linux环境中sqlite版本已更新`
+
+## 切换到项目目录，创建数据模型
+>python manage.py makemigrations
+
+    Migrations for 'data':
+    data/migrations/0001_initial.py
+        - Create model Concepts
+        - Create model ConceptStretagy
+        - Create model HotStocks
+        - Create model LimitupStocks
+        - Create model Securities
+
+>python manage.py migrate
+
+    Operations to perform:
+    Apply all migrations: admin, auth, contenttypes, data, sessions
+    Running migrations:
+    Applying contenttypes.0001_initial... OK
+    Applying auth.0001_initial... OK
+    Applying admin.0001_initial... OK
+    Applying admin.0002_logentry_remove_auto_add... OK
+    Applying admin.0003_logentry_add_action_flag_choices... OK
+    Applying contenttypes.0002_remove_content_type_name... OK
+    Applying auth.0002_alter_permission_name_max_length... OK
+    Applying auth.0003_alter_user_email_max_length... OK
+    Applying auth.0004_alter_user_username_opts... OK
+    Applying auth.0005_alter_user_last_login_null... OK
+    Applying auth.0006_require_contenttypes_0002... OK
+    Applying auth.0007_alter_validators_add_error_messages... OK
+    Applying auth.0008_alter_user_username_max_length... OK
+    Applying auth.0009_alter_user_last_name_max_length... OK
+    Applying auth.0010_alter_group_name_max_length... OK
+    Applying auth.0011_update_proxy_permissions... OK
+    Applying auth.0012_alter_user_first_name_max_length... OK
+    Applying data.0001_initial... OK
+    Applying sessions.0001_initial... OK
+
+### 安装nginx并配置
+1. 下载安装包，编译安装
+
+>wget http://nginx.org/download/nginx-1.18.0.tar.gz
+
+>./configuer<br>
+make && make install
+
+2. 替换nginx.conf为以下内容
+
+    events {
+        worker_connections  1024;
+    }
+    http {
+        include       mime.types;
+        default_type  application/octet-stream;
+        sendfile        on;
+        server {
+            listen 80; # 这里nginx监听得是80端口,浏览器输入域名不需要加端口了就
+            server_name  127.0.0.1:80; #改为自己的域名，没域名修改为127.0.0.1:80
+            charset utf-8;
+            location / {
+            include uwsgi_params;
+            uwsgi_pass 127.0.0.1:8000;  #端口要和uwsgi里配置的一样
+            uwsgi_param UWSGI_SCRIPT tangying.wsgi;  #wsgi.py所在的目录名+.wsgi
+            uwsgi_param UWSGI_CHDIR /usr/local/tangying; #项目路径
+            }
+            location /static/ {
+            alias /usr/local/tangying/app/static/; #静态资源路径
+            }
+        }
+    }
+
+3. 进入安装目录 执行 ./nginx -t 命令先检查配置文件是否有错，没有错就执行以下命令：./nginx，终端没有任何提示就证明nginx启动成功
+
+### 启动项目(注意uwsgi配置中的项目路径)
+>uwsgi -x tangying.xml 
+
+    ps -ef|grep uwsgi 检查是否启动成功

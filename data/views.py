@@ -74,13 +74,18 @@ def getHotTop10Stocks(request):
 #values做分组
 #annotate,aggregate做聚合
 def queryLimitupStocks():
+    if LimitupStocks.objects.count() == 0:
+        return None
     limitup_stocks_pool = LimitupStocks.objects.filter(Date__gte=LimitupStocks.objects.last().Date-timedelta(days=1))
     last_limitup_stocks = limitup_stocks_pool.values('Name').annotate(_Reason_type=GroupConcat('Reason_type'))
     
     return last_limitup_stocks
 
 def getLimitupStocks(request):
-    last_limitup_stocks = queryLimitupStocks().values('Name', 'Latest', 'Currency_value', '_Reason_type', 'Limitup_type', 'High_days', 'Change_rate')
+    LimitupStocks = queryLimitupStocks()
+    if LimitupStocks == None:
+        return HttpResponse(json.dumps([],ensure_ascii=False))
+    last_limitup_stocks = LimitupStocks.values('Name', 'Latest', 'Currency_value', '_Reason_type', 'Limitup_type', 'High_days', 'Change_rate')
     return HttpResponse(json.dumps(list(last_limitup_stocks),ensure_ascii=False))
 
 #箱体形态模型

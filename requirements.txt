@@ -59,3 +59,4 @@ urllib3==1.26.11
 webencodings==0.5.1
 websocket-client==0.57.0
 xlrd==2.0.1
+uwsgi==2.0.20
