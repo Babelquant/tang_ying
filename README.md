@@ -47,4 +47,33 @@ tangying后端
 
 >pip install django==4.0.6 uwsgi -i http://pypi.douban.com/simple --trusted-host pypi.douban.com
 
+### 解压安装包，安装项目依赖
+>git clone https://github.com/Babelquant/tang_ying
 
+>pip install -r requirements.txt -i http://pypi.douban.com/simple --trusted-host pypi.douban.com
+
+## Python3安装sqlite3
+django启动报错：`django.core.exceptions.ImproperlyConfigured: SQLite 3.9.0 or later is required (found 3.7.17)`
+或：`django.db.utils.NotSupportedError: deterministic=True requires SQLite 3.8.3`
+
+1.官网下载高版本sqlite3安装包
+
+2.编译安装
+
+> mkdir /usr/local/sqlite <br>
+./configure <br>
+make && make install 
+
+3.替换版本
+
+>mv /usr/bin/sqlite3 /usr/bin/sqlite3_bk<br>
+ln -s /usr/local/sqlite/sqlite3 /usr/bin/sqlite3
+
+4.添加环境变量,将新版本lib文件添加进环境
+
+> vim /etc/profile<br>
+#添加内容(路径根据sqlite库具体安装位置)
+export LD_LIBRARY_PATH="/usr/local/lib" <br>
+source /etc/profile
+
+`到此Linux环境中sqlite版本已更新`
