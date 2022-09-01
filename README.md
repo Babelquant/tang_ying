@@ -9,24 +9,23 @@ django启动报错：`django.core.exceptions.ImproperlyConfigured: SQLite 3.9.0 
 或：`django.db.utils.NotSupportedError: deterministic=True requires SQLite 3.8.3`
 
 1.官网下载高版本sqlite3安装包
->wget https://sqlite.org/2022/sqlite-autoconf-3390200.tar.gz --no-check-certificate'
+>wget https://sqlite.org/2022/sqlite-autoconf-3390200.tar.gz --no-check-certificate
 
 2.编译安装
 
-> mkdir /usr/local/sqlite <br>
-./configure <br>
+> ./configure --prefix=/usr/local/sqlite3 <br>
 make && make install 
 
 3.替换版本
 
 >mv /usr/bin/sqlite3 /usr/bin/sqlite3_bk<br>
-ln -s /usr/local/sqlite/sqlite3 /usr/bin/sqlite3
+ln -s /usr/local/sqlite3/bin/sqlite3 /usr/bin/sqlite3
 
 4.添加环境变量,将新版本lib文件添加进环境
 
 > vim /etc/profile<br>
 #添加内容(路径根据sqlite库具体安装位置)
-export LD_LIBRARY_PATH="/usr/local/lib" <br>
+export LD_LIBRARY_PATH="/usr/local/sqlite3/lib" <br>
 source /etc/profile
 
 `到此Linux环境中sqlite版本已更新`
@@ -58,16 +57,13 @@ source /etc/profile
 
 ### 创建python3虚拟环境
 
-1. 新建文件夹 
-    >makedir py3env
-
-2. 下载python工具包virtualenv(用python3的pip)
+1. 下载python工具包virtualenv(用python3的pip)
     >pip3 install virtualenv
 
-3. 创建python虚拟环境(切换到py3env同级目录)
+2. 创建python虚拟环境(切换到py3env同级目录)
     >python3 -m virtualenv py3env
 
-4. 切换到虚拟环境
+3. 切换到虚拟环境
     >source py3env/bin/activate
 
 ### 安装django(4.0.6),uwsgi
