@@ -2,6 +2,7 @@ from django.shortcuts import render
 from data.models import *
 import pandas as pd
 import json
+import time as tm
 from django.core.serializers.json import DjangoJSONEncoder
 from datetime import *
 from chinese_calendar import is_workday
@@ -273,7 +274,8 @@ def conceptWinStocks(concept_code):
             continue
         bottom_price2020 = stock_zh_a_hist_df.nsmallest(2,'最低').最低.iloc[1]
         #近1周内出现最低价且与2019年1月或2020年1月最低价相差1元以内
-        if abs(five_day_low_price-bottom_price2019)<1 or abs(five_day_low_price-bottom_price2020)<1:
+        # if abs(five_day_low_price-bottom_price2019)<1 or abs(five_day_low_price-bottom_price2020)<1:
+        if five_day_low_price<bottom_price2019+1 or five_day_low_price<bottom_price2020+1:
             #近1周涨幅
             inc = str(round((last_price - five_day_low_price)/five_day_low_price*100,1))+'%'
             name = row.名称
@@ -371,14 +373,15 @@ def limitupStrategyData(request):
             continue
         eighty_day_low_price = stock_zh_a_hist_df.最低.min()
         #近80日内出现最低价且与2019年1月或2020年1月最低价相差1元以内
-        if abs(eighty_day_low_price-bottom_price2019)<1 or abs(eighty_day_low_price-bottom_price2020)<1:
+        # if abs(eighty_day_low_price-bottom_price2019)<1 or abs(eighty_day_low_price-bottom_price2020)<1:
+        if eighty_day_low_price<bottom_price2019+1 or eighty_day_low_price<bottom_price2020+1:
             win_stocks.append(stock)
             
     return HttpResponse(json.dumps(win_stocks,ensure_ascii=False))
 
 #涨停板统计分析
 def limitupStatistic(request):
-    head = [['High_days','Num','Date']]
+    head = [['High_days','Name','Date']]
     #过滤本月数据
     # data1 = LimitupStocks.objects.get(High_days__regex=r'(首|2|3).*').filter(Date__month=datetime.today().month).values('Name','Date').\
     data = LimitupStocks.objects.filter(Date__month=datetime.today().month).values('Name','Date','High_days').distinct()
@@ -386,15 +389,16 @@ def limitupStatistic(request):
         return HttpResponse(json.dumps(head,cls=DjangoJSONEncoder,ensure_ascii=False))
     data_df = pd.DataFrame.from_records(data)
     #df按多列分组
-    data_df['Num'] = data_df.groupby(['High_days','Date'])['Name'].transform('count')
-    data_df.drop(columns=['Name'],inplace=True)
+    # data_df['Num'] = data_df.groupby(['High_days','Date'])['Name'].transform('count')
+    data_df['Name'] = data_df.groupby(['High_days','Date'])['Name'].transform(','.join)
+    # data_df.drop(columns=['Name'],inplace=True)
     data_df.drop_duplicates(ignore_index=True,inplace=True)
     # print(data_df[data_df.Date=='2022-08-30'])
     # data1 = data.values('Date','High_days').annotate(Num=Count('Name')).values_list('High_days','Num','Date').order_by('Date')
     # print(pd.DataFrame.from_records(data1.filter(Date__gte='2022-08-28').values('Name','_Reason_type','Date','High_days')))
     # print(pd.DataFrame.from_records(data))
     for _,d in data_df.iterrows():
-        head.append([d.High_days,d.Num,d.Date.strftime('%m-%d')])
+        head.append([d.High_days,d.Name,d.Date.strftime('%m-%d')])
     return HttpResponse(json.dumps(head,cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取概念股统计数据
@@ -442,7 +446,7 @@ def getAllConcepts(request):
 #获取单只股票数据
 def getStockPrice(code):
     today = datetime.today().strftime('%Y%m%d')
-    candlestick_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date="20181201", end_date=today, adjust="")
+    candlestick_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date="20181201", end_date=today, adjust="qfq")
     # candlestick_df_nona.reset_index(inplace=True)
 
     return candlestick_df.dropna()
@@ -456,7 +460,12 @@ def getCandlestick(request,code):
 #获取实时资讯
 def getNews(request):
     ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    js_news_df = ak.js_news(timestamp=ts)
-    print('news_count:',js_news_df.count())
+    while True:
+        try:
+            js_news_df = ak.js_news(timestamp=ts)
+        except:
+            tm.sleep(2)
+            continue
+        break
     js_news_df.sort_index(ascending=False,inplace=True)
     return HttpResponse(json.dumps(js_news_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))

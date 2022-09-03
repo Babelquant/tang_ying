@@ -4,7 +4,7 @@ tangying后端
 
 ## Installation
 
-## 安装sqlite3
+## 安装sqlite3(在python3安装前)
 django启动报错：`django.core.exceptions.ImproperlyConfigured: SQLite 3.9.0 or later is required (found 3.7.17)`
 或：`django.db.utils.NotSupportedError: deterministic=True requires SQLite 3.8.3`
 
@@ -24,21 +24,19 @@ ln -s /usr/local/sqlite3/bin/sqlite3 /usr/bin/sqlite3
 4.添加环境变量,将新版本lib文件添加进环境
 
 > vim /etc/profile<br>
-#添加内容(路径根据sqlite库具体安装位置)
+#添加内容(路径根据sqlite库具体安装位置)<br>
 export LD_LIBRARY_PATH="/usr/local/sqlite3/lib" <br>
 source /etc/profile
 
 `到此Linux环境中sqlite版本已更新`
 
-### 安装Python3
+### 安装Python3（若已安装sqlite则需重新编译）
 
 1. 下载安装包
     > wget https://www.python.org/ftp/python/3.9.8/Python-3.9.8.tar.xz
 
 2. 安装依赖
     >yum -y install zlib-devel bzip2-devel openssl-devel sqlite-devel gcc make
-
-    >yum -y groupinstall "Development tools"
 
 3. 编译安装
 
@@ -54,7 +52,9 @@ source /etc/profile
             -DUSE_SSL -I$(SSL)/include -I$(SSL)/include/openssl \
             -L$(SSL)/lib -lssl -lcrypto
     ```
-    >./configure LDFLAGS="-L/usr/local/sqlite3/lib" CPPFLAGS="-I /usr/local/sqlite3/include" LD_RUN_PATH=/usr/local/sqlite3/lib <br>
+    >./configure LDFLAGS="-L/usr/local/sqlite3/lib" CPPFLAGS="-I /usr/local/sqlite3/include" LD_RUN_PATH=/usr/local/sqlite3/lib 
+    
+    `此参数是解决django.db.utils.NotSupportedError: deterministic=True requires SQLite 3.8.3报错的关键！`<br>
     make && make install
 
 ### 创建python3虚拟环境
