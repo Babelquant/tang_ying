@@ -86,7 +86,7 @@ def getLimitupStocks(request):
     LimitupStocks = queryLimitupStocks()
     if LimitupStocks == None:
         return HttpResponse(json.dumps([],ensure_ascii=False))
-    last_limitup_stocks = LimitupStocks.values('Name', 'Latest', 'Currency_value', '_Reason_type', 'Limitup_type', 'High_days', 'Change_rate')
+    last_limitup_stocks = LimitupStocks.values('Name', 'Code', 'Latest', 'Currency_value', '_Reason_type', 'Limitup_type', 'High_days', 'Change_rate')
     return HttpResponse(json.dumps(list(last_limitup_stocks),ensure_ascii=False))
 
 #箱体形态模型
