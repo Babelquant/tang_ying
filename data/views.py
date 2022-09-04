@@ -464,11 +464,18 @@ def getStockPrice(code):
 
     return candlestick_df.dropna()
 
-#搜索股票数据接口
+#搜索股票历史数据接口
 def getCandlestick(request,code):
     candlestick = getStockPrice(code)
     # candlestick_df.rename(columns={'index','date'},inplace=True)
     return HttpResponse(json.dumps(np.array(candlestick).tolist(),cls=DjangoJSONEncoder,ensure_ascii=False))
+
+#个股实时行情
+def getLatestPrice(request,code):
+    today = datetime.today().strftime('%Y%m%d')
+    price_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=beforDaysn(today,10), end_date=today, adjust="qfq")
+    latest_price = price_df.tail(1)
+    return HttpResponse(json.dumps(latest_price.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取实时资讯
 def getNews(request):
