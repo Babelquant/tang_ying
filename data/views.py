@@ -444,6 +444,19 @@ def getAllConcepts(request):
     # return HttpResponse(json.dumps(concepts,cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取单只股票数据
+#返回值：
+# 名称	    类型	    描述
+# 0.日期	object	    交易日
+# 1.开盘	float64	    开盘价
+# 2.收盘	float64	    收盘价
+# 3.最高	float64	    最高价
+# 4.最低	float64	    最低价
+# 5.成交量	int32	    注意单位: 手
+# 6.成交额	float64	    注意单位: 元
+# 7.振幅	float64	    注意单位: %
+# 8.涨跌幅	float64	    注意单位: %
+# 9.涨跌额	float64	    注意单位: 元
+# 10.换手率	float64	    注意单位: %
 def getStockPrice(code):
     today = datetime.today().strftime('%Y%m%d')
     candlestick_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date="20181201", end_date=today, adjust="qfq")
@@ -469,3 +482,20 @@ def getNews(request):
         break
     js_news_df.sort_index(ascending=False,inplace=True)
     return HttpResponse(json.dumps(js_news_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
+
+#盘口异动数据
+#stock_changes_em
+
+#个股人气榜-最新排名
+#东方财富-个股人气榜-最新排名
+def getStockLatestRank(request,symbol):
+    data = {}
+    stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SZ'+symbol)
+    if stock_hot_rank_latest_em_df.iloc[0,1] == None:
+        stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SH'+symbol)
+    data['srcSecurityCode'] = stock_hot_rank_latest_em_df.iloc[4,1]
+    data['innerCode'] = stock_hot_rank_latest_em_df.iloc[3,1]
+    data['rank'] = stock_hot_rank_latest_em_df.iloc[5,1]
+    data['rankChange'] = stock_hot_rank_latest_em_df.iloc[6,1]
+
+    return HttpResponse(json.dumps(data,ensure_ascii=False))

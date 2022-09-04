@@ -18,6 +18,8 @@ urlpatterns = [
     path('all_concepts/', getAllConcepts),
     #获取单只股票蜡烛图数据
     path('candlestick/<code>/', getCandlestick),
+    #获取个股人气最新排名
+    path('stock_latest_rank/<symbol>/', getStockLatestRank),
     #涨停策略数据
     path('limitup_strategy/', limitupStrategyData),
     #概念策略数据

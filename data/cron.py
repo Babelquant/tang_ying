@@ -108,7 +108,7 @@ def parseHotStockPackage(body):
         infos = body['data']['stock_list']
         for info in infos:
             row = [ info['name'],info['order'],info['hot_rank_chg'],\
-                    '&'.join(info['tag']['concept_tag']),int(float(info['rate'])),info['tag'].get('popularity_tag',None),date]
+                    '&'.join(info['tag']['concept_tag']),float(info['rate'])/10000,info['tag'].get('popularity_tag',None),date]
             rows.append(row)
         return rows
 
