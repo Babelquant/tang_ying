@@ -22,6 +22,8 @@ urlpatterns = [
     path('latest_price/<code>/', getLatestPrice),
     #获取个股人气最新排名
     path('stock_latest_rank/<symbol>/', getStockLatestRank),
+    #获取板块概念数据
+    path('board_concept_data/', getBoardConceptData),
     #涨停策略数据
     path('limitup_strategy/', limitupStrategyData),
     #概念策略数据

@@ -506,3 +506,10 @@ def getStockLatestRank(request,symbol):
     data['rankChange'] = stock_hot_rank_latest_em_df.iloc[6,1]
 
     return HttpResponse(json.dumps(data,ensure_ascii=False))
+
+#获取当前时刻所有概念板块数据
+def getBoardConceptData(request):
+    stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
+    stock_board_concept_name_em_df.drop(columns=['最新价','涨跌额','总市值','换手率'],axis=1,inplace=True)
+    data = stock_board_concept_name_em_df.rename(columns={'领涨股票-涨跌幅':'股票涨跌幅'})
+    return HttpResponse(json.dumps(data.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
