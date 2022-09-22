@@ -83,10 +83,20 @@ def queryLimitupStocks():
     return last_limitup_stocks
 
 def getLimitupStocks(request):
-    LimitupStocks = queryLimitupStocks()
-    if LimitupStocks == None:
+    limitup_stocks = queryLimitupStocks()
+    if limitup_stocks == None:
         return HttpResponse(json.dumps([],ensure_ascii=False))
-    last_limitup_stocks = LimitupStocks.values('Name', 'Code', 'Latest', 'Currency_value', '_Reason_type', 'Limitup_type', 'High_days', 'Change_rate')
+    # print(befor_last_date,type(befor_last_date))
+    last_limitup_stocks = limitup_stocks.values('Name', 'Code', 'Latest', 'Currency_value', '_Reason_type', 'Limitup_type', 'High_days', 'Change_rate')
+
+    # for last_limitup_stock in last_limitup_stocks:
+    #     if last_limitup_stock['High_days'] == '3天2板' or last_limitup_stock['High_days'] == '4天2板':
+    #         last_limitup_stock['High_days'] = '首板'
+    #     if last_limitup_stock['High_days'] == '5天3板':
+    #         #判断前一天是否涨停
+    #         if LimitupStocks.objects.filter(Date__range=(befor_last_date-timedelta(days=1),befor_last_date),Name=last_limitup_stock['Name']).exists():
+    #             last_limitup_stock['High_days'] = '2天2板'
+        
     return HttpResponse(json.dumps(list(last_limitup_stocks),ensure_ascii=False))
 
 #箱体形态模型
@@ -200,7 +210,7 @@ def getSharpfallStrategy(request):
     return HttpResponse(json.dumps(sharpfalls,cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #概念策略
-def conceptStrategyData(request,codes):
+def conceptStrategyDataBk(request,codes):
     win_stock_set = []
     try:
         for concept_code in codes.split(','):
@@ -232,7 +242,7 @@ def conceptStrategyData(request,codes):
     return HttpResponse(json.dumps(concept_stocks,cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取概念潜力股筛选数据
-def conceptWinStocks(concept_code):
+def conceptWinStocksBk(concept_code):
     now = datetime.now().strftime('%Y-%m-%d')
     end = datetime.today().strftime('%Y%m%d')
     rows = []
@@ -286,6 +296,89 @@ def conceptWinStocks(concept_code):
     # g = (win_stocks['concept']).groupby(win_stocks['name']).agg(','.join)
     return win_stocks
 
+#概念策略
+def conceptStrategyData(request,codes):
+    win_stock_set = []
+    try:
+        for concept_code in codes.split(','):
+            concept = Concepts.objects.get(code=concept_code).name
+            win_stock = conceptWinStocks(concept_code)
+            if not win_stock.empty:
+                win_stock.insert(loc=4,column='Concept',value=concept)
+                win_stock_set.append(win_stock)
+    except Exception as e:
+        print(e)
+        return HttpResponse('err:',e)
+
+    if win_stock_set == []:
+        return HttpResponse(json.dumps([],cls=DjangoJSONEncoder,ensure_ascii=False))
+    # concept_stocks = []
+    if len(win_stock_set) == 1:
+        origin_stocks = win_stock_set[0]
+    else:
+        #df数据分组聚合 
+        # print('win_df:',win_stock_set)
+        origin_stocks = pd.concat(win_stock_set,ignore_index=True)
+        # origin_stocks['concept_count'] = origin_stocks.groupby('name')['name'].transform('count')
+        origin_stocks['Concept'] = origin_stocks.groupby('Name')['Concept'].transform(','.join)
+        origin_stocks.drop_duplicates(ignore_index=True,inplace=True)
+    origin_stocks['Currency_value'] = origin_stocks.apply(lambda x:x['Currency_value'].strip('亿'),axis=1)
+    # origin_stocks['currency_value'].astype(dtype='float')
+    origin_stocks.sort_values(by='Currency_value', inplace=True)
+    # print(origin_stocks)    
+    #df转dict
+    # for concept_stock in np.array(origin_stocks).tolist():
+    #     concept_stocks.append({'name':concept_stock[0],'code':concept_stock[1],'concept':concept_stock[4],'last_price':concept_stock[2],'increase':concept_stock[3]})
+    concept_stocks = origin_stocks.to_dict('records')
+    return HttpResponse(json.dumps(concept_stocks,cls=DjangoJSONEncoder,ensure_ascii=False))
+
+#获取概念潜力股筛选数据
+def conceptWinStocks(concept_code):
+    now = datetime.now().strftime('%Y-%m-%d')
+    end = datetime.today().strftime('%Y%m%d')
+    rows = []
+    #获取概念成份股
+    stock_board_cons_ths_df = ak.stock_board_cons_ths(symbol=concept_code)
+    # print(concept_code,'获取成分股：\n',stock_board_cons_ths_df)
+    #获取每支股票最新价
+    for _,row in stock_board_cons_ths_df.iterrows():
+        print(row.名称)
+        stock_code = row.代码
+        if stock_code.startswith('300'):
+            continue
+        #判断是否st
+        # if jq.get_extras('is_st',stock,end_date=now,count=1,df=True).iloc[0,0]:
+        #     continue
+        #流通值/亿
+        if float(row.流通市值.rstrip('亿')) > 80 or float(row.流通市值.rstrip('亿')) < 20:
+            continue
+        #涨跌幅
+        changepercent = row.涨跌幅
+        last_price = float(row.现价)
+        if last_price > 30:
+            continue
+        #近1周最高价
+        # stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=beforDaysn(end,4), end_date=end)
+        # if stock_zh_a_hist_df.empty:
+        #     continue
+        # five_day_high_price = stock_zh_a_hist_df.最高.max()
+        # #近1周涨幅
+        # inc = str(round((last_price - five_day_high_price)/five_day_high_price*100,1))+'%'
+
+        #获取排名
+        stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SZ'+stock_code)
+        if stock_hot_rank_latest_em_df.iloc[0,1] == None:
+            stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SH'+stock_code)
+        rank = stock_hot_rank_latest_em_df.iloc[5,1]
+
+        name = row.名称
+        print(name,last_price)
+        rows.append([name,stock_code,last_price,row.流通市值,changepercent,rank])
+    win_stocks = pd.DataFrame(rows,columns=['Name','Code','Latest','Currency_value','Change_percent','Rank'])
+    #分组聚合
+    # g = (win_stocks['concept']).groupby(win_stocks['name']).agg(','.join)
+    return win_stocks
+
 #妖股策略
 #code:股票代码
 #near:统计最近多少个交易日的股价最低点
@@ -332,14 +425,32 @@ def isMonster(code,nearday=100,ratio=[1,1.5]):
     # print('近3年最高价：',high800)
     return True
 
+#首板策略
+def firstBoardStrategy(request):
+    #所有板块概念
+    all_concepts = Concepts.objects.values('name','code')
+    #获取当前时刻
+    stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
+    #获取异动板块
+    board_concept_name = stock_board_concept_name_em_df.iloc[0,1]
+    print("name:",board_concept_name)
+    board_concept = all_concepts.get(name__contains=board_concept_name)
+    print('board_code:',board_concept)
+    #获取板块概念成分股
+    # ths_df = ak.stock_board_cons_ths(symbol=board_concept_code)
+    # #涨跌幅在1%内，振幅在2%以内
+    # stocks_df = ths_df[(ths_df.涨跌幅<1) & (ths_df.流通市值/10**8<80) & (ths_df.振幅<2)].reset_index(drop=True)
+    # return HttpResponse(json.dumps(stocks_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
+
 #涨停策略输出
 def limitupStrategyData(request):
     LimitupStocks = queryLimitupStocks()
     if LimitupStocks == None:
         return HttpResponse(json.dumps([],ensure_ascii=False))
-    now = datetime.now().strftime('%Y%m%d')
+    # now = datetime.now().strftime('%Y%m%d')
     #获取涨停池
-    last_limitup_stocks = LimitupStocks.values('Name', '_Reason_type', 'Latest', 'Limitup_type', 'High_days', 'Currency_value', 'Code')
+    last_limitup_stocks = LimitupStocks.values('Name', '_Reason_type', 'Latest', 'Limitup_type', 'High_days', 'Currency_value', 'Code', 'Date')
+    now = last_limitup_stocks.last()['Date'].strftime('%Y%m%d')
     #策略选股
     win_stocks = []
     # all_stocks = Securities.objects.values('name','code')
@@ -355,29 +466,43 @@ def limitupStrategyData(request):
                 continue
         # code  = Securities.objects.get(name=stock['Name']).code
         stock_code = stock['Code']
-
-        #2019年1月波谷,去掉1个最小值
-        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=stock_code,start_date='20190101',end_date='20190220')
-        #有股票在对应的时间段未开盘
+        #计算布林
+        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=beforDaysn(now,20), end_date=now)
         if stock_zh_a_hist_df.empty:
             continue
-        bottom_price2019 = stock_zh_a_hist_df.nsmallest(2,'最低').最低.iloc[1]
-        #2020年1月波谷,去掉1个最小值
-        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=stock_code,start_date='20200101',end_date='20200220')
+        tm.sleep(3)
         if stock_zh_a_hist_df.empty:
-            continue
-        bottom_price2020 = stock_zh_a_hist_df.nsmallest(2,'最低').最低.iloc[1]
-        #近80日最低价
-        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=beforDaysn(now,80), end_date=now)
-        if stock_zh_a_hist_df.empty:
-            continue
-        eighty_day_low_price = stock_zh_a_hist_df.最低.min()
-        #近80日内出现最低价且与2019年1月或2020年1月最低价相差1元以内
-        # if abs(eighty_day_low_price-bottom_price2019)<1 or abs(eighty_day_low_price-bottom_price2020)<1:
-        if eighty_day_low_price<bottom_price2019+1 or eighty_day_low_price<bottom_price2020+1:
+            continue      
+        #计算SMA值
+        stock_zh_a_hist_df['sma_20'] = stock_zh_a_hist_df['收盘'].rolling(window=20).mean()
+        #计算布林上轨
+        stock_zh_a_hist_df['upper_bb'] = round(stock_zh_a_hist_df['sma_20'] + stock_zh_a_hist_df['收盘'].rolling(window=20).std()*2,2) 
+        #涨停价未穿过上轨 
+        print(f"股票:{stock['Name']} 现价:{stock['Latest']} 布林上轨:{stock_zh_a_hist_df.iloc[-1,-1]}")
+        if stock_zh_a_hist_df.iloc[-1,-1] > stock['Latest']:
             win_stocks.append(stock)
+ 
+        # #2019年1月波谷,去掉1个最小值
+        # stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=stock_code,start_date='20190101',end_date='20190220')
+        # #有股票在对应的时间段未开盘
+        # if stock_zh_a_hist_df.empty:
+        #     continue
+        # bottom_price2019 = stock_zh_a_hist_df.nsmallest(2,'最低').最低.iloc[1]
+        # #2020年1月波谷,去掉1个最小值
+        # stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=stock_code,start_date='20200101',end_date='20200220')
+        # if stock_zh_a_hist_df.empty:
+        #     continue
+        # bottom_price2020 = stock_zh_a_hist_df.nsmallest(2,'最低').最低.iloc[1]
+        # #近80日最低价
+        # stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=beforDaysn(now,80), end_date=now)
+        # if stock_zh_a_hist_df.empty:
+        #     continue
+        # eighty_day_low_price = stock_zh_a_hist_df.最低.min()
+        # #近80日内出现最低价且与2019年1月或2020年1月最低价相差1元以内
+        # if eighty_day_low_price<bottom_price2019+1 or eighty_day_low_price<bottom_price2020+1:
+        #     win_stocks.append(stock)
             
-    return HttpResponse(json.dumps(win_stocks,ensure_ascii=False))
+    return HttpResponse(json.dumps(win_stocks,cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #涨停板统计分析
 def limitupStatistic(request):
@@ -511,5 +636,5 @@ def getStockLatestRank(request,symbol):
 def getBoardConceptData(request):
     stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
     stock_board_concept_name_em_df.drop(columns=['最新价','涨跌额','总市值','换手率'],axis=1,inplace=True)
-    data = stock_board_concept_name_em_df.rename(columns={'领涨股票-涨跌幅':'股票涨跌幅'})
-    return HttpResponse(json.dumps(data.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
+    data_df = stock_board_concept_name_em_df.rename(columns={'领涨股票-涨跌幅':'股票涨跌幅'})
+    return HttpResponse(json.dumps(data_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))

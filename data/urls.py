@@ -30,6 +30,8 @@ urlpatterns = [
     path('concept_strategy/<codes>/', conceptStrategyData),
     #快速下跌策略数据
     path('sharpfall_strategy/', getSharpfallStrategy),
+    #首板策略数据
+    path('first_board_strategy/', firstBoardStrategy),
     #获取实时资讯
     path('news/', getNews),
 

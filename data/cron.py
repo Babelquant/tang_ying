@@ -119,8 +119,17 @@ def parseLimitUpStockPackage(body):
         rows = []
         infos = body['data']['info']
         # print(infos)
+        last_date = LimitupStocks.objects.values('Date').distinct().last()['Date']
         for info in infos:
-            #ctx.log.warn("stock name:%s"%info['name'])
+            if info['high_days'] == '3天2板' or info['high_days'] == '4天2板':
+                info['high_days'] = '首板'
+            if info['high_days'] == '4天2板':
+                info['high_days'] = '2天2板'
+            if info['high_days'] == '5天3板':
+                #判断前一个交易日是否涨停
+                if LimitupStocks.objects.filter(Date__range=(last_date-timedelta(days=1),last_date),Name=info['name']).exists():
+                    info['high_days'] = '2天2板'
+
             row = [ info['name'],info['code'],info['latest'],int(info['currency_value']/100000000),\
                     info['reason_type'],info['limit_up_type'],info['high_days'],\
                     str(int(info['change_rate']))+"%",date ]
