@@ -342,15 +342,15 @@ def conceptWinStocks(concept_code):
     # print(concept_code,'获取成分股：\n',stock_board_cons_ths_df)
     #获取每支股票最新价
     for _,row in stock_board_cons_ths_df.iterrows():
-        print(row.名称)
         stock_code = row.代码
         if stock_code.startswith('300'):
             continue
+        print(stock_code)
         #判断是否st
         # if jq.get_extras('is_st',stock,end_date=now,count=1,df=True).iloc[0,0]:
         #     continue
         #流通值/亿
-        if float(row.流通市值.rstrip('亿')) > 80 or float(row.流通市值.rstrip('亿')) < 20:
+        if float(row.流通市值.rstrip('亿')) > 80:
             continue
         #涨跌幅
         changepercent = row.涨跌幅
@@ -365,16 +365,43 @@ def conceptWinStocks(concept_code):
         # #近1周涨幅
         # inc = str(round((last_price - five_day_high_price)/five_day_high_price*100,1))+'%'
 
-        #获取排名
-        stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SZ'+stock_code)
-        if stock_hot_rank_latest_em_df.iloc[0,1] == None:
-            stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SH'+stock_code)
-        rank = stock_hot_rank_latest_em_df.iloc[5,1]
+        h = {'User-Agent':'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'}
+        #概念贴合度
+        url_info = 'http://basic.10jqka.com.cn/'+stock_code+'/'
+        rsp = rq.get(url=url_info,headers=h)
+        rsp.encoding = 'gb2312'
+        soup = BeautifulSoup(rsp.text, 'html.parser')
+        div_newconcept = soup.find_all('div',class_='newconcept')[0]
+        #抽取标签文本
+        concepts = []
+        related_concepts = div_newconcept.find_all('a')[:3]
+        for related_concept in related_concepts:
+            concepts.append(related_concept.text)
+        fit_concepts = ' '.join(concepts)
 
+        # related_concept = ' '.join()
+        #获取排名
+        url_rank = 'http://basic.10jqka.com.cn/mapp/'+stock_code+'/a_stock_foucs.json'
+        rsp = rq.get(url=url_rank,headers=h)
+        # print(url,rsp.status_code,rsp.json())
+        rsp_data = rsp.json()['data']
+        #返回体
+        '''
+        {
+            "status_code": 0,
+            "status_msg": "",
+            "data": {
+                "all_rank": 4317,
+                "all_num": 5113,
+                "industry_rank": 97,
+                "industry_num": 123
+            }
+        }
+        '''
         name = row.名称
-        print(name,last_price)
-        rows.append([name,stock_code,last_price,row.流通市值,changepercent,rank])
-    win_stocks = pd.DataFrame(rows,columns=['Name','Code','Latest','Currency_value','Change_percent','Rank'])
+        # print(name,last_price,fit_concepts)
+        rows.append([name,stock_code,last_price,row.流通市值,changepercent,rsp_data['all_rank'],rsp_data['industry_rank'],fit_concepts])
+    win_stocks = pd.DataFrame(rows,columns=['Name','Code','Latest','Currency_value','Change_percent','All_rank','Ind_rank','Related_concept'])
     #分组聚合
     # g = (win_stocks['concept']).groupby(win_stocks['name']).agg(','.join)
     return win_stocks
@@ -638,3 +665,30 @@ def getBoardConceptData(request):
     stock_board_concept_name_em_df.drop(columns=['最新价','涨跌额','总市值','换手率'],axis=1,inplace=True)
     data_df = stock_board_concept_name_em_df.rename(columns={'领涨股票-涨跌幅':'股票涨跌幅'})
     return HttpResponse(json.dumps(data_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
+
+#获取上证指数的实时行情数据
+def getShangIndex(request):
+    stock_zh_index_spot_df = ak.stock_zh_index_spot()
+    data_df = stock_zh_index_spot_df[stock_zh_index_spot_df.名称=='上证指数']
+    return HttpResponse(json.dumps(data_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
+
+#24h内微博舆情报告中近期受关注的股票
+def getWeiboReport(request):
+    stock_js_weibo_report_df = ak.stock_js_weibo_report(time_period="CNHOUR12")
+    return HttpResponse(json.dumps(stock_js_weibo_report_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
+
+#获取今日涨停池股票数据
+def getNewLimitUpPool(request):
+    tool_trade_date_hist_sina_df = ak.tool_trade_date_hist_sina()
+    #最新交易日
+    today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
+    stock_zt_pool_em_df = ak.stock_zt_pool_em(date=today.strftime('%Y%m%d'))
+    return HttpResponse(json.dumps(stock_zt_pool_em_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
+
+#获取昨日涨停池股票数据
+def getPreviousLimitUpPool(request):
+    tool_trade_date_hist_sina_df = ak.tool_trade_date_hist_sina()
+    #最新交易日
+    today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
+    stock_zt_pool_previous_em_df = ak.stock_zt_pool_previous_em(date=today.strftime('%Y%m%d'))
+    return HttpResponse(json.dumps(stock_zt_pool_previous_em_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))

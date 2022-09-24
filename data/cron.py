@@ -5,6 +5,7 @@ scrape hot stocks
 import json,time,os,math
 import pandas as pd
 import requests as rq
+from bs4 import BeautifulSoup
 from tangying.common import getSqliteEngine
 from data.models import *
 from datetime import *
@@ -52,7 +53,6 @@ class LimitUpStocks:
     def __init__(self):
         self.url = "https://data.10jqka.com.cn/dataapi/limit_up/limit_up_pool"
         self.stocks_head = ['Name', 'Code', 'Latest', 'Currency_value', 'Reason_type', 'Limitup_type', 'High_days', 'Change_rate', 'Date']
-        self.reason_head = ['涨停股票数','占比','相关股票']
         # self.date = time.strftime('%m-%d',time.localtime(time.time()))
         self.date = datetime.today().strftime("%m-%d")
         self.header = {
@@ -92,12 +92,8 @@ class LimitUpStocks:
             one_page_data.extend(parseLimitUpStockPackage(rsp.json()))        
 
         #返回股票详情表单
-        self.limit_up_stocks = pd.DataFrame(data=one_page_data,columns=self.stocks_head)
-        return self.limit_up_stocks
+        return pd.DataFrame(data=one_page_data,columns=self.stocks_head)
         
-        #涨停原因表单
-        return pd.DataFrame(data=reason_type,columns=self.reason_head)
-
 #解析热度榜数据包
 def parseHotStockPackage(body):
     date = datetime.now()
@@ -166,6 +162,8 @@ def hotStocks2Sqlite():
         # if "engine" in dir():
         #     engine.close()
 
+#涨停池股票入库
+#拆分涨停原因
 def limitupStocks2Sqlite():
     limitup_stocks = LimitUpStocks()
     try:

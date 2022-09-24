@@ -4,7 +4,7 @@ from data.views import *
 urlpatterns = [
     #获取热度榜数据
     path('hot_stocks/', getHotRankStocks),
-    #获取排名前十的股票
+    #获取最新排名前十的股票
     path('hot10_stocks/', getHotTop10Stocks),
     #获取当日涨停股票
     path('limitup_stocks/', getLimitupStocks),
@@ -34,5 +34,13 @@ urlpatterns = [
     path('first_board_strategy/', firstBoardStrategy),
     #获取实时资讯
     path('news/', getNews),
+    #获取实时涨停池股票数据
+    path('new_limitup_pool/', getNewLimitUpPool),
+    #获取昨日涨停池股票数据
+    path('pre_limitup_pool/', getPreviousLimitUpPool),
+    #获取上证指数实时行情
+    path('sz_index/', getShangIndex),
+    #24h内微博舆情报告中近期受关注的股票
+    path('weibo_report/', getWeiboReport),
 
 ]
