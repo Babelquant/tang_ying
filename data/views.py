@@ -506,7 +506,7 @@ def limitupStrategyData(request):
         stock_zh_a_hist_df['upper_bb'] = round(stock_zh_a_hist_df['sma_20'] + stock_zh_a_hist_df['收盘'].rolling(window=20).std()*2,2) 
         #涨停价未穿过上轨 
         print(f"股票:{stock['Name']} 现价:{stock['Latest']} 布林上轨:{stock_zh_a_hist_df.iloc[-1,-1]}")
-        if stock_zh_a_hist_df.iloc[-1,-1] > stock['Latest']:
+        if stock_zh_a_hist_df.iloc[-1,-1] > stock['Latest']+0.1:
             win_stocks.append(stock)
  
         # #2019年1月波谷,去掉1个最小值
