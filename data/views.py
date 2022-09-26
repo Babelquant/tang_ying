@@ -661,9 +661,10 @@ def getStockLatestRank(request,symbol):
 
 #获取当前时刻所有概念板块数据
 def getBoardConceptData(request):
-    stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
-    stock_board_concept_name_em_df.drop(columns=['最新价','涨跌额','总市值','换手率'],axis=1,inplace=True)
-    data_df = stock_board_concept_name_em_df.rename(columns={'领涨股票-涨跌幅':'股票涨跌幅'})
+    stock_df = ak.stock_board_concept_name_em()
+    stock_df.drop(index=stock_df[stock_df.板块名称.str.contains('昨日')].index.tolist(),inplace=True)
+    stock_df.drop(columns=['最新价','涨跌额','总市值','换手率'],axis=1,inplace=True)
+    data_df = stock_df.rename(columns={'领涨股票-涨跌幅':'股票涨跌幅'})
     return HttpResponse(json.dumps(data_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取上证指数的实时行情数据
