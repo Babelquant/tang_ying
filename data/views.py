@@ -302,7 +302,7 @@ def conceptStrategyData(request,codes):
     try:
         for concept_code in codes.split(','):
             concept = Concepts.objects.get(code=concept_code).name
-            win_stock = conceptWinStocks(concept_code)
+            win_stock = conceptWinStocks(concept_code,concept)
             if not win_stock.empty:
                 win_stock.insert(loc=4,column='Concept',value=concept)
                 win_stock_set.append(win_stock)
@@ -333,7 +333,7 @@ def conceptStrategyData(request,codes):
     return HttpResponse(json.dumps(concept_stocks,cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取概念潜力股筛选数据
-def conceptWinStocks(concept_code):
+def conceptWinStocks(concept_code,concept_name):
     now = datetime.now().strftime('%Y-%m-%d')
     end = datetime.today().strftime('%Y%m%d')
     rows = []
@@ -345,16 +345,19 @@ def conceptWinStocks(concept_code):
         stock_code = row.代码
         if stock_code.startswith('300'):
             continue
-        print(stock_code)
+        print(row.名称)
         #判断是否st
         # if jq.get_extras('is_st',stock,end_date=now,count=1,df=True).iloc[0,0]:
         #     continue
-        #流通值/亿
-        if float(row.流通市值.rstrip('亿')) > 80:
+        try:
+            #流通值/亿
+            if float(row.流通市值.rstrip('亿')) > 80:
+                continue
+            #涨跌幅
+            changepercent = row.涨跌幅
+            last_price = float(row.现价)
+        except:
             continue
-        #涨跌幅
-        changepercent = row.涨跌幅
-        last_price = float(row.现价)
         if last_price > 30:
             continue
         #近1周最高价
@@ -365,42 +368,11 @@ def conceptWinStocks(concept_code):
         # #近1周涨幅
         # inc = str(round((last_price - five_day_high_price)/five_day_high_price*100,1))+'%'
 
-        h = {'User-Agent':'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'}
-        #概念贴合度
-        url_info = 'http://basic.10jqka.com.cn/'+stock_code+'/'
-        rsp = rq.get(url=url_info,headers=h)
-        rsp.encoding = 'gb2312'
-        soup = BeautifulSoup(rsp.text, 'html.parser')
-        div_newconcept = soup.find_all('div',class_='newconcept')[0]
-        #抽取标签文本
-        concepts = []
-        related_concepts = div_newconcept.find_all('a')[:3]
-        for related_concept in related_concepts:
-            concepts.append(related_concept.text)
-        fit_concepts = ' '.join(concepts)
-
-        # related_concept = ' '.join()
-        #获取排名
-        url_rank = 'http://basic.10jqka.com.cn/mapp/'+stock_code+'/a_stock_foucs.json'
-        rsp = rq.get(url=url_rank,headers=h)
-        # print(url,rsp.status_code,rsp.json())
-        rsp_data = rsp.json()['data']
-        #返回体
-        '''
-        {
-            "status_code": 0,
-            "status_msg": "",
-            "data": {
-                "all_rank": 4317,
-                "all_num": 5113,
-                "industry_rank": 97,
-                "industry_num": 123
-            }
-        }
-        '''
+        stock_info = scrapStockInfo(stock_code)
         name = row.名称
         # print(name,last_price,fit_concepts)
-        rows.append([name,stock_code,last_price,row.流通市值,changepercent,rsp_data['all_rank'],rsp_data['industry_rank'],fit_concepts])
+        if concept_name in stock_info['fit_concepts']:
+            rows.append([name,stock_code,last_price,row.流通市值,changepercent,stock_info['all_rank'],stock_info['industry_rank'],stock_info['fit_concepts']])
     win_stocks = pd.DataFrame(rows,columns=['Name','Code','Latest','Currency_value','Change_percent','All_rank','Ind_rank','Related_concept'])
     #分组聚合
     # g = (win_stocks['concept']).groupby(win_stocks['name']).agg(','.join)
@@ -566,6 +538,18 @@ def conceptStatistic(request):
     # return HttpResponse(json.dumps(list(limitup_stocks_pool),cls=DjangoJSONEncoder,ensure_ascii=False))
     return HttpResponse(json.dumps(chart,cls=DjangoJSONEncoder,ensure_ascii=False))
 
+#获取涨停股行业统计数据
+def industryStatistic(request):
+    chart = [['Industry', 'Limitup_count','Relative_stocks','Date']]
+    limitup_stocks_pool = LimitupStocks.objects.filter(Date__month=datetime.now().month).\
+    values('Industry').annotate(Limitup_count=Count('Name'),Relative_stocks=GroupConcat('Name')).values_list('Industry', 'Limitup_count','Relative_stocks','Date').order_by('Date')
+    for limitup_stock_pool in limitup_stocks_pool:  #返回值类型为元组
+        #拿到数据库中时间字符串二次加工以满足图表对时间格式的要求
+        list_limitup_stock_pool = list(limitup_stock_pool)
+        list_limitup_stock_pool[3] = list_limitup_stock_pool[3].strftime('%Y-%m-%d')
+        chart.append(list_limitup_stock_pool)
+    return HttpResponse(json.dumps(chart,cls=DjangoJSONEncoder,ensure_ascii=False))
+
 #获取所有股票信息
 def getAllSecurities(request):
     all_stocks_name = Securities.objects.values('value','code') 
@@ -645,19 +629,63 @@ def getNews(request):
 #盘口异动数据
 #stock_changes_em
 
-#个股人气榜-最新排名
-#东方财富-个股人气榜-最新排名
-def getStockLatestRank(request,symbol):
-    data = {}
-    stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SZ'+symbol)
-    if stock_hot_rank_latest_em_df.iloc[0,1] == None:
-        stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SH'+symbol)
-    data['srcSecurityCode'] = stock_hot_rank_latest_em_df.iloc[4,1]
-    data['innerCode'] = stock_hot_rank_latest_em_df.iloc[3,1]
-    data['rank'] = stock_hot_rank_latest_em_df.iloc[5,1]
-    data['rankChange'] = stock_hot_rank_latest_em_df.iloc[6,1]
+#爬取同花顺股票详情页
+def scrapStockInfo(symbol):
+    stock_info = {}
+    h = {'User-Agent':'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'}
+    url_info = 'http://basic.10jqka.com.cn/'+symbol+'/'
+    url_rank = 'http://basic.10jqka.com.cn/mapp/'+symbol+'/a_stock_foucs.json'
+    rsp = rq.get(url=url_rank,headers=h)
+    #市场排名
+    stock_info['all_rank'] = rsp.json()['data']['all_rank']
+    #行业排名
+    stock_info['industry_rank'] = rsp.json()['data']['industry_rank']
+    rsp = rq.get(url=url_info,headers=h)
+    rsp.encoding = 'gb2312'
+    soup = BeautifulSoup(rsp.text, 'html.parser')
 
-    return HttpResponse(json.dumps(data,ensure_ascii=False))
+    #公司亮点
+    stock_info['lightspot'] = soup.find_all('span',text='公司亮点：')[0].find_next_sibling().string.strip()
+    #主营业务
+    stock_info['major'] = soup.find_all('span',text='主营业务：')[0].find_next_sibling().a['title']
+    #所属申万行业
+    stock_info['industry'] = soup.find_all('span',text='所属申万行业：')[0].find_next_sibling().text
+    #前3贴合概念
+    concepts = []
+    for related_concept in soup.find(class_='newconcept').find_all('a')[:3]:
+        concepts.append(related_concept.text)
+    stock_info['fit_concepts'] = ' '.join(concepts)
+
+    return stock_info
+
+#获取股票详情
+def getStockInfo(request,symbol):
+    # stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SZ'+symbol)
+    # if stock_hot_rank_latest_em_df.iloc[0,1] == None:
+    #     stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SH'+symbol)
+    # data['srcSecurityCode'] = stock_hot_rank_latest_em_df.iloc[4,1]
+    # data['innerCode'] = stock_hot_rank_latest_em_df.iloc[3,1]
+    # data['rankChange'] = stock_hot_rank_latest_em_df.iloc[6,1]
+
+    return HttpResponse(json.dumps(scrapStockInfo(symbol),ensure_ascii=False))
+
+#获取股票所属申万行业
+def getStockIndustry(symbol):
+    h = {'User-Agent':'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'}
+    url_info = 'http://basic.10jqka.com.cn/'+symbol+'/'
+    rsp = rq.get(url=url_info,headers=h)
+    rsp.encoding = 'gb2312'
+    soup = BeautifulSoup(rsp.text, 'html.parser')
+    #所属申万行业
+    return soup.find_all('span',text='所属申万行业：')[0].find_next_sibling().text
+
+#个股人气榜-实时变动
+#单次返回指定 symbol 的股票近期历史数据
+def getStockDetailRank(request,symbol):
+    #http://guba.eastmoney.com/rank/stock?code=000665
+    stock_hot_rank_detail_realtime_em_df = ak.stock_hot_rank_detail_realtime_em(symbol='SZ'+symbol)
+    if stock_hot_rank_detail_realtime_em_df.iloc[0,1] == None:
+        stock_hot_rank_detail_realtime_em_df = ak.stock_hot_rank_detail_realtime_em(symbol='SH'+symbol)
 
 #获取当前时刻所有概念板块数据
 def getBoardConceptData(request):
@@ -679,12 +707,58 @@ def getWeiboReport(request):
     return HttpResponse(json.dumps(stock_js_weibo_report_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取今日涨停池股票数据
+'''
+输出：
+名称	类型	描述
+序号	int64	-
+代码	object	-
+名称	object	-
+涨跌幅	float64	注意单位: %
+最新价	float64	-
+成交额	int64	-
+流通市值	float64	-
+总市值	float64	-
+换手率	float64	注意单位: %
+封板资金	int64	-
+首次封板时间	object	注意格式: 09:25:00
+最后封板时间	object	注意格式: 09:25:00
+炸板次数	int64	-
+涨停统计	object	-
+连板数	int64	注意格式: 1 为首板
+所属行业	object	-
+'''
 def getNewLimitUpPool(request):
     tool_trade_date_hist_sina_df = ak.tool_trade_date_hist_sina()
     #最新交易日
     today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
     stock_zt_pool_em_df = ak.stock_zt_pool_em(date=today.strftime('%Y%m%d'))
     return HttpResponse(json.dumps(stock_zt_pool_em_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
+
+#资金单位换算
+def unitConv(num):
+    n = num/10000
+
+    if n < 10000:
+        return str(int(n))+'万'
+    else:
+        return str(round(n/1000,1))+'亿'
+
+#获取最新涨停股票行业分析详情
+def getLimitupIndustry(request):
+    tool_trade_date_hist_sina_df = ak.tool_trade_date_hist_sina()
+    #最新交易日
+    today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
+    stock_zt_pool_em_df = ak.stock_zt_pool_em(date=today.strftime('%Y%m%d'))
+    if stock_zt_pool_em_df.empty:
+        return HttpResponse(json.dumps('',cls=DjangoJSONEncoder,ensure_ascii=False))
+    stock_zt_pool_em_df['所属行业'] = stock_zt_pool_em_df['代码'].apply(lambda x:getStockIndustry(x))
+    stock_zt_pool_em_df['流通市值'] = stock_zt_pool_em_df['流通市值'].apply(lambda x:str(int(x/100000000))+'亿')
+    stock_zt_pool_em_df['封板资金'] = stock_zt_pool_em_df['封板资金'].apply(lambda x:unitConv(x))
+    stock_zt_pool_em_df['首次封板时间'] = stock_zt_pool_em_df['首次封板时间'].apply(lambda x:''.join([x[:2],':',x[2:4]]))
+    industry_statistic = stock_zt_pool_em_df.groupby('所属行业').apply(lambda x:x.to_dict('records')) #返回series类型
+    # print(industry_statistic)
+    # industry_statistic.sort_values(key=lambda x:len(x),inplace=True)
+    return HttpResponse(json.dumps(industry_statistic.to_dict(),cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取昨日涨停池股票数据
 def getPreviousLimitUpPool(request):

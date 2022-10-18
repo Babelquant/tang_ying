@@ -17,6 +17,7 @@ class HotStocks(models.Model):
 class LimitupStocks(models.Model):
     Name = models.CharField('股票名',max_length=8)
     Code = models.CharField('股票代码',max_length=8)
+    Industry = models.CharField('申万行业',max_length=8,null=True)
     Latest = models.FloatField('涨停价')
     Currency_value = models.IntegerField('流通值')
     Reason_type = models.CharField('涨停原因',max_length=32)

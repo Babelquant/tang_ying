@@ -12,6 +12,8 @@ urlpatterns = [
     path('limitup_statistic/', limitupStatistic),
     #获取概念分析数据
     path('concept_statistic/', conceptStatistic),
+    #获取行业分析数据
+    path('industry_statistic/', industryStatistic),
     #获取所有股票信息
     path('all_securities/', getAllSecurities),
     #获取所有概念信息
@@ -20,10 +22,12 @@ urlpatterns = [
     path('candlestick/<code>/', getCandlestick),
     #获取个股最新行情
     path('latest_price/<code>/', getLatestPrice),
-    #获取个股人气最新排名
-    path('stock_latest_rank/<symbol>/', getStockLatestRank),
+    #获取个股资料
+    path('stock_info/<symbol>/', getStockInfo),
     #获取板块概念数据
     path('board_concept_data/', getBoardConceptData),
+    #获取最新涨停股票行业分析详情
+    path('limitup_industry/', getLimitupIndustry),
     #涨停策略数据
     path('limitup_strategy/', limitupStrategyData),
     #概念策略数据
