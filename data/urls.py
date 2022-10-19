@@ -31,17 +31,15 @@ urlpatterns = [
     #涨停策略数据
     path('limitup_strategy/', limitupStrategyData),
     #概念策略数据
-    path('concept_strategy/<codes>/', conceptStrategyData),
+    path('concept_strategy/<str:codes>/<int:ismatch>/', conceptStrategyData),
     #快速下跌策略数据
     path('sharpfall_strategy/', getSharpfallStrategy),
     #首板策略数据
     path('first_board_strategy/', firstBoardStrategy),
     #获取实时资讯
     path('news/', getNews),
-    #获取实时涨停池股票数据
-    path('new_limitup_pool/', getNewLimitUpPool),
-    #获取昨日涨停池股票数据
-    path('pre_limitup_pool/', getPreviousLimitUpPool),
+    #获取昨日涨停股票数量
+    path('pre_limitup_count/', getPreviousLimitUpCount),
     #获取上证指数实时行情
     path('sz_index/', getShangIndex),
     #24h内微博舆情报告中近期受关注的股票

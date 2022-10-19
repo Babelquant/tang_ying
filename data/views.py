@@ -297,12 +297,12 @@ def conceptWinStocksBk(concept_code):
     return win_stocks
 
 #概念策略
-def conceptStrategyData(request,codes):
+def conceptStrategyData(request,**kwargs):
     win_stock_set = []
     try:
-        for concept_code in codes.split(','):
+        for concept_code in kwargs['codes'].split(','):
             concept = Concepts.objects.get(code=concept_code).name
-            win_stock = conceptWinStocks(concept_code,concept)
+            win_stock = conceptWinStocks(concept_code,concept,kwargs['ismatch'])
             if not win_stock.empty:
                 win_stock.insert(loc=4,column='Concept',value=concept)
                 win_stock_set.append(win_stock)
@@ -333,7 +333,7 @@ def conceptStrategyData(request,codes):
     return HttpResponse(json.dumps(concept_stocks,cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取概念潜力股筛选数据
-def conceptWinStocks(concept_code,concept_name):
+def conceptWinStocks(concept_code,concept_name,is_match):
     now = datetime.now().strftime('%Y-%m-%d')
     end = datetime.today().strftime('%Y%m%d')
     rows = []
@@ -371,7 +371,11 @@ def conceptWinStocks(concept_code,concept_name):
         stock_info = scrapStockInfo(stock_code)
         name = row.名称
         # print(name,last_price,fit_concepts)
-        if concept_name in stock_info['fit_concepts']:
+        #是否开启概念贴合
+        if is_match:
+            if concept_name in stock_info['fit_concepts']:
+                rows.append([name,stock_code,last_price,row.流通市值,changepercent,stock_info['all_rank'],stock_info['industry_rank'],stock_info['fit_concepts']])
+        else:
             rows.append([name,stock_code,last_price,row.流通市值,changepercent,stock_info['all_rank'],stock_info['industry_rank'],stock_info['fit_concepts']])
     win_stocks = pd.DataFrame(rows,columns=['Name','Code','Latest','Currency_value','Change_percent','All_rank','Ind_rank','Related_concept'])
     #分组聚合
@@ -706,7 +710,16 @@ def getWeiboReport(request):
     stock_js_weibo_report_df = ak.stock_js_weibo_report(time_period="CNHOUR12")
     return HttpResponse(json.dumps(stock_js_weibo_report_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
 
-#获取今日涨停池股票数据
+#资金单位换算
+def unitConv(num):
+    n = num/10000
+
+    if n < 10000:
+        return str(int(n))+'万'
+    else:
+        return str(round(n/1000,1))+'亿'
+
+#获取最新涨停股票行业分析详情
 '''
 输出：
 名称	类型	描述
@@ -727,27 +740,14 @@ def getWeiboReport(request):
 连板数	int64	注意格式: 1 为首板
 所属行业	object	-
 '''
-def getNewLimitUpPool(request):
-    tool_trade_date_hist_sina_df = ak.tool_trade_date_hist_sina()
-    #最新交易日
-    today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
-    stock_zt_pool_em_df = ak.stock_zt_pool_em(date=today.strftime('%Y%m%d'))
-    return HttpResponse(json.dumps(stock_zt_pool_em_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
-
-#资金单位换算
-def unitConv(num):
-    n = num/10000
-
-    if n < 10000:
-        return str(int(n))+'万'
-    else:
-        return str(round(n/1000,1))+'亿'
-
-#获取最新涨停股票行业分析详情
 def getLimitupIndustry(request):
     tool_trade_date_hist_sina_df = ak.tool_trade_date_hist_sina()
     #最新交易日
-    today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
+    cur_time = tm.strftime('%H:%M',tm.localtime(tm.time()))
+    if tm.strptime(cur_time,'%H:%M') < tm.strptime('09:30','%H:%M'):
+        today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-2,0]
+    else:
+        today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
     stock_zt_pool_em_df = ak.stock_zt_pool_em(date=today.strftime('%Y%m%d'))
     if stock_zt_pool_em_df.empty:
         return HttpResponse(json.dumps('',cls=DjangoJSONEncoder,ensure_ascii=False))
@@ -760,10 +760,14 @@ def getLimitupIndustry(request):
     # industry_statistic.sort_values(key=lambda x:len(x),inplace=True)
     return HttpResponse(json.dumps(industry_statistic.to_dict(),cls=DjangoJSONEncoder,ensure_ascii=False))
 
-#获取昨日涨停池股票数据
-def getPreviousLimitUpPool(request):
+#获取昨日涨停股票数量
+def getPreviousLimitUpCount(request):
     tool_trade_date_hist_sina_df = ak.tool_trade_date_hist_sina()
     #最新交易日
-    today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
+    cur_time = tm.strftime('%H:%M',tm.localtime(tm.time()))
+    if tm.strptime(cur_time,'%H:%M') < tm.strptime('09:30','%H:%M'):
+        today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-2,0]
+    else:
+        today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
     stock_zt_pool_previous_em_df = ak.stock_zt_pool_previous_em(date=today.strftime('%Y%m%d'))
-    return HttpResponse(json.dumps(stock_zt_pool_previous_em_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
+    return HttpResponse(json.dumps(len(stock_zt_pool_previous_em_df),cls=DjangoJSONEncoder,ensure_ascii=False))
