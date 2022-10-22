@@ -304,7 +304,15 @@ def conceptStrategyData(request,**kwargs):
     try:
         for concept_code in kwargs['codes'].split(','):
             concept = Concepts.objects.get(code=concept_code).name
-            win_stock = conceptWinStocks(concept_code,concept,kwargs['ismatch'])
+            rows = []
+
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(conceptWinStocksLoop(concept_code,concept,kwargs['ismatch'],rows))
+            loop.close()
+
+            win_stock = pd.DataFrame(rows,columns=['Name','Code','Latest','Currency_value','Change_percent','All_rank','Ind_rank','Related_concept'])
             if not win_stock.empty:
                 win_stock.insert(loc=4,column='Concept',value=concept)
                 win_stock_set.append(win_stock)
@@ -335,54 +343,71 @@ def conceptStrategyData(request,**kwargs):
     return HttpResponse(json.dumps(concept_stocks,cls=DjangoJSONEncoder,ensure_ascii=False))
 
 #获取概念潜力股筛选数据
-def conceptWinStocks(concept_code,concept_name,is_match):
-    now = datetime.now().strftime('%Y-%m-%d')
-    end = datetime.today().strftime('%Y%m%d')
-    rows = []
-    #获取概念成份股
-    stock_board_cons_ths_df = ak.stock_board_cons_ths(symbol=concept_code)
-    # print(concept_code,'获取成分股：\n',stock_board_cons_ths_df)
-    #获取每支股票最新价
-    for _,row in stock_board_cons_ths_df.iterrows():
-        stock_code = row.代码
-        if stock_code.startswith('300'):
-            continue
-        print(row.名称)
-        #判断是否st
-        # if jq.get_extras('is_st',stock,end_date=now,count=1,df=True).iloc[0,0]:
-        #     continue
-        try:
-            #流通值/亿
-            if float(row.流通市值.rstrip('亿')) > 80:
-                continue
-            #涨跌幅
-            changepercent = row.涨跌幅
-            last_price = float(row.现价)
-        except:
-            continue
-        if last_price > 30:
-            continue
-        #近1周最高价
-        # stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=beforDaysn(end,4), end_date=end)
-        # if stock_zh_a_hist_df.empty:
-        #     continue
-        # five_day_high_price = stock_zh_a_hist_df.最高.max()
-        # #近1周涨幅
-        # inc = str(round((last_price - five_day_high_price)/five_day_high_price*100,1))+'%'
+async def conceptWinStocks(concept_code,concept_name,is_match,rows,stock):
+    stock_info = {}
+    stock_code = stock.代码
+    if stock_code.startswith('300'):
+        return
+    print(stock.名称)
+    #判断是否st
+    # if jq.get_extras('is_st',stock,end_date=now,count=1,df=True).iloc[0,0]:
+    #     continue
+    try:
+        #流通值/亿
+        if float(stock.流通市值.rstrip('亿')) > 80:
+            return
+        #涨跌幅
+        changepercent = stock.涨跌幅
+        last_price = float(stock.现价)
+    except:
+        return
+    if last_price > 30:
+        return
 
-        stock_info = scrapStockInfo(stock_code)
-        name = row.名称
+    h = {'User-Agent':'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'}
+    url_info = 'http://basic.10jqka.com.cn/'+stock_code+'/'
+    url_rank = 'http://basic.10jqka.com.cn/mapp/'+stock_code+'/a_stock_foucs.json'
+    rsp = rq.get(url=url_rank,headers=h)
+    #市场排名
+    stock_info['all_rank'] = rsp.json()['data']['all_rank']
+    #行业排名
+    stock_info['industry_rank'] = rsp.json()['data']['industry_rank']
+    async with aiohttp.ClientSession() as session:
+        rsp = await session.get(url_info,headers=h)
+        rsp.encoding = 'gb2312'
+        content = await rsp.text()
+
+        soup = BeautifulSoup(content, 'html.parser')
+        #公司亮点
+        stock_info['lightspot'] = soup.find_all('span',text='公司亮点：')[0].find_next_sibling().string.strip()
+        #主营业务
+        stock_info['major'] = soup.find_all('span',text='主营业务：')[0].find_next_sibling().a['title']
+        #所属申万行业
+        stock_info['industry'] = soup.find_all('span',text='所属申万行业：')[0].find_next_sibling().text
+        #前3贴合概念
+        concepts = []
+        for related_concept in soup.find(class_='newconcept').find_all('a')[:3]:
+            concepts.append(related_concept.text)
+        stock_info['fit_concepts'] = ' '.join(concepts)
         # print(name,last_price,fit_concepts)
         #是否开启概念贴合
         if is_match:
             if concept_name in stock_info['fit_concepts']:
-                rows.append([name,stock_code,last_price,row.流通市值,changepercent,stock_info['all_rank'],stock_info['industry_rank'],stock_info['fit_concepts']])
+                rows.append([stock.名称,stock_code,last_price,stock.流通市值,changepercent,stock_info['all_rank'],stock_info['industry_rank'],stock_info['fit_concepts']])
         else:
-            rows.append([name,stock_code,last_price,row.流通市值,changepercent,stock_info['all_rank'],stock_info['industry_rank'],stock_info['fit_concepts']])
-    win_stocks = pd.DataFrame(rows,columns=['Name','Code','Latest','Currency_value','Change_percent','All_rank','Ind_rank','Related_concept'])
-    #分组聚合
-    # g = (win_stocks['concept']).groupby(win_stocks['name']).agg(','.join)
-    return win_stocks
+            rows.append([stock.名称,stock_code,last_price,stock.流通市值,changepercent,stock_info['all_rank'],stock_info['industry_rank'],stock_info['fit_concepts']])
+
+    
+
+async def conceptWinStocksLoop(concept_code,concept_name,is_match,rows):
+    works = []
+    #获取概念成份股
+    stock_board_cons_ths_df = ak.stock_board_cons_ths(symbol=concept_code)
+    # print(concept_code,'获取成分股：\n',stock_board_cons_ths_df)
+    #获取每支股票最新价
+    for _,stock in stock_board_cons_ths_df.iterrows():
+        works.append(conceptWinStocks(concept_code,concept_name,is_match,rows,stock))
+    await asyncio.gather(*works)
 
 #妖股策略
 #code:股票代码
@@ -635,6 +660,40 @@ def getNews(request):
 #盘口异动数据
 #stock_changes_em
 
+#爬取同花顺股票详情页 -----异步io
+# async def scrapStockInfo(symbol,stock_info):
+#     # stock_info = {}
+#     h = {'User-Agent':'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'}
+#     url_info = 'http://basic.10jqka.com.cn/'+symbol+'/'
+#     url_rank = 'http://basic.10jqka.com.cn/mapp/'+symbol+'/a_stock_foucs.json'
+#     rsp = rq.get(url=url_rank,headers=h)
+#     #市场排名
+#     stock_info['all_rank'] = rsp.json()['data']['all_rank']
+#     #行业排名
+#     stock_info['industry_rank'] = rsp.json()['data']['industry_rank']
+#     async with aiohttp.ClientSession() as session:
+#         rsp = await session.get(url_info,headers=h)
+#         rsp.encoding = 'gb2312'
+#         content = await rsp.text()
+
+#         soup = BeautifulSoup(content, 'html.parser')
+#         #公司亮点
+#         stock_info['lightspot'] = soup.find_all('span',text='公司亮点：')[0].find_next_sibling().string.strip()
+#         #主营业务
+#         stock_info['major'] = soup.find_all('span',text='主营业务：')[0].find_next_sibling().a['title']
+#         #所属申万行业
+#         stock_info['industry'] = soup.find_all('span',text='所属申万行业：')[0].find_next_sibling().text
+#         #前3贴合概念
+#         concepts = []
+#         for related_concept in soup.find(class_='newconcept').find_all('a')[:3]:
+#             concepts.append(related_concept.text)
+#         stock_info['fit_concepts'] = ' '.join(concepts)
+
+#     # return stock_info
+
+# async def scrapStockInfoLoop(symbol,stock_info):
+#     await asyncio.gather(*[scrapStockInfo(symbol,stock_info)])
+
 #爬取同花顺股票详情页
 def scrapStockInfo(symbol):
     stock_info = {}
@@ -666,14 +725,16 @@ def scrapStockInfo(symbol):
 
 #获取股票详情
 def getStockInfo(request,symbol):
-    # stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SZ'+symbol)
-    # if stock_hot_rank_latest_em_df.iloc[0,1] == None:
-    #     stock_hot_rank_latest_em_df = ak.stock_hot_rank_latest_em(symbol='SH'+symbol)
-    # data['srcSecurityCode'] = stock_hot_rank_latest_em_df.iloc[4,1]
-    # data['innerCode'] = stock_hot_rank_latest_em_df.iloc[3,1]
-    # data['rankChange'] = stock_hot_rank_latest_em_df.iloc[6,1]
-
     return HttpResponse(json.dumps(scrapStockInfo(symbol),ensure_ascii=False))
+
+    # stock_info = {}
+    # new_loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(new_loop)
+    # loop = asyncio.get_event_loop()
+    # loop.run_until_complete(scrapStockInfoLoop(symbol,stock_info))
+    # loop.close()
+
+    # return HttpResponse(json.dumps(stock_info,ensure_ascii=False))
 
 #获取股票所属申万行业-----异步爬取
 async def getStockIndustry(df,symbol):
