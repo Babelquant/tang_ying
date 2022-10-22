@@ -28,8 +28,8 @@ urlpatterns = [
     path('board_concept_data/', getBoardConceptData),
     #获取最新涨停股票行业分析详情
     path('limitup_industry/', getLimitupIndustry),
-    #涨停策略数据
-    path('limitup_strategy/', limitupStrategyData),
+    #布林策略数据
+    path('boll_strategy/', bollStrategyData),
     #概念策略数据
     path('concept_strategy/<str:codes>/<int:ismatch>/', conceptStrategyData),
     #快速下跌策略数据

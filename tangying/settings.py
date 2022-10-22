@@ -133,7 +133,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CronJob
 CRONJOBS = (
     ('*/10 09-16 * * *', 'data.cron.hotStocks2Sqlite', '>>~/cron.log'),
-    ('30 15 * * 1,2,3,4,5', 'data.cron.limitupStocks2Sqlite', '>>~/cron.log'),
+    #每周1-5 9：30到15：00，拆分！
+    ('30-60/1 9 * * 1-5', 'data.cron.limitupStocks2Sqlite', '>>~/cron.log'),
+    ('*/1 10-15 * * 1-5', 'data.cron.limitupStocks2Sqlite', '>>~/cron.log'),
+    ('30 15 * * 1-5', 'data.cron.limitupStocks2Sqlite', '>>~/cron.log'),
     ('0 0 1 */1 *', 'data.cron.allSecurities2Sqlite', '>>~/cron.log'),
     ('0 15 * * 5', 'data.cron.allConcept2Sqlite', '>>~/cron.log'),
 )

@@ -52,7 +52,7 @@ class HotRankStocks:
 class LimitUpStocks:
     def __init__(self):
         self.url = "https://data.10jqka.com.cn/dataapi/limit_up/limit_up_pool"
-        self.stocks_head = ['Name', 'Code', 'Industry', 'Latest', 'Currency_value', 'Reason_type', 'Limitup_type', 'High_days', 'Change_rate', 'Date']
+        self.stocks_head = ['Name', 'Code', 'Latest', 'Currency_value', 'Reason_type', 'Limitup_type', 'High_days', 'Change_rate', 'Date']
         # self.date = time.strftime('%m-%d',time.localtime(time.time()))
         self.date = datetime.today().strftime("%m-%d")
         self.header = {
@@ -125,10 +125,8 @@ def parseLimitUpStockPackage(body):
                 #判断前一个交易日是否涨停
                 if LimitupStocks.objects.filter(Date__range=(last_date-timedelta(days=1),last_date),Name=info['name']).exists():
                     info['high_days'] = '2天2板'
-            #获取行业
-            industry = ak.stock_individual_info_em(symbol=info['code']).iloc[2,1]
 
-            row = [ info['name'],info['code'],industry,info['latest'],int(info['currency_value']/100000000),\
+            row = [ info['name'],info['code'],info['latest'],int(info['currency_value']/100000000),\
                     info['reason_type'],info['limit_up_type'],info['high_days'],\
                     str(int(info['change_rate']))+"%",date ]
             rows.append(row)
@@ -183,6 +181,8 @@ def limitupStocks2Sqlite():
                 rows.append(new_row)
         new_limitup_stocks_df = pd.DataFrame(rows,columns=limitup_stocks.stocks_head).reset_index(drop=True)
    
+        if LimitupStocks.objects.last().Date.strftime('%Y%m%d') == datetime.now().strftime('%Y%m%d'):
+            LimitupStocks.objects.filter(Date__gte=datetime.now()-timedelta(days=1)).delete()
         engine = getSqliteEngine()
         new_limitup_stocks_df.to_sql("limitupstocks",engine,index=False,if_exists="append")
     except Exception as e:

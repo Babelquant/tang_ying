@@ -3,6 +3,8 @@ from data.models import *
 import pandas as pd
 import json
 import time as tm
+import asyncio
+import aiohttp
 from django.core.serializers.json import DjangoJSONEncoder
 from datetime import *
 from chinese_calendar import is_workday
@@ -445,8 +447,8 @@ def firstBoardStrategy(request):
     # stocks_df = ths_df[(ths_df.涨跌幅<1) & (ths_df.流通市值/10**8<80) & (ths_df.振幅<2)].reset_index(drop=True)
     # return HttpResponse(json.dumps(stocks_df.to_dict('records'),cls=DjangoJSONEncoder,ensure_ascii=False))
 
-#涨停策略输出
-def limitupStrategyData(request):
+#布林策略输出
+def bollStrategyData(request):
     LimitupStocks = queryLimitupStocks()
     if LimitupStocks == None:
         return HttpResponse(json.dumps([],ensure_ascii=False))
@@ -673,15 +675,23 @@ def getStockInfo(request,symbol):
 
     return HttpResponse(json.dumps(scrapStockInfo(symbol),ensure_ascii=False))
 
-#获取股票所属申万行业
-def getStockIndustry(symbol):
+#获取股票所属申万行业-----异步爬取
+async def getStockIndustry(df,symbol):
     h = {'User-Agent':'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'}
     url_info = 'http://basic.10jqka.com.cn/'+symbol+'/'
-    rsp = rq.get(url=url_info,headers=h)
-    rsp.encoding = 'gb2312'
-    soup = BeautifulSoup(rsp.text, 'html.parser')
-    #所属申万行业
-    return soup.find_all('span',text='所属申万行业：')[0].find_next_sibling().text
+
+    async with aiohttp.ClientSession() as session:
+        resp = await session.get(url_info,headers=h)
+        # print(resp.status)
+        resp.encoding = 'gb2312'
+        content = await resp.text()
+        soup = BeautifulSoup(content, 'html.parser')
+        #所属申万行业
+        # df.loc[df['代码'] == symbol, ['head_c', 'link_c', 'span_c']] = [[headers_count, links_count, spans_count]]
+        df.loc[df['代码'] == symbol, '所属行业'] = [[soup.find_all('span',text='所属申万行业：')[0].find_next_sibling().text]]
+
+async def addIndustryLoop(df):
+    await asyncio.gather(*[getStockIndustry(df,symbol) for symbol in df['代码']])
 
 #个股人气榜-实时变动
 #单次返回指定 symbol 的股票近期历史数据
@@ -751,7 +761,15 @@ def getLimitupIndustry(request):
     stock_zt_pool_em_df = ak.stock_zt_pool_em(date=today.strftime('%Y%m%d'))
     if stock_zt_pool_em_df.empty:
         return HttpResponse(json.dumps('',cls=DjangoJSONEncoder,ensure_ascii=False))
-    stock_zt_pool_em_df['所属行业'] = stock_zt_pool_em_df['代码'].apply(lambda x:getStockIndustry(x))
+    # stock_zt_pool_em_df['所属行业'] = stock_zt_pool_em_df['代码'].apply(lambda x:getStockIndustry(x)) //同步返回数据时间太长
+
+    #异步爬虫优化爬取行业信息
+    new_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(new_loop)
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(addIndustryLoop(stock_zt_pool_em_df))
+    loop.close()
+
     stock_zt_pool_em_df['流通市值'] = stock_zt_pool_em_df['流通市值'].apply(lambda x:str(int(x/100000000))+'亿')
     stock_zt_pool_em_df['封板资金'] = stock_zt_pool_em_df['封板资金'].apply(lambda x:unitConv(x))
     stock_zt_pool_em_df['首次封板时间'] = stock_zt_pool_em_df['首次封板时间'].apply(lambda x:''.join([x[:2],':',x[2:4]]))
