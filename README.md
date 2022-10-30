@@ -36,7 +36,7 @@ source /etc/profile
     > wget https://www.python.org/ftp/python/3.9.8/Python-3.9.8.tar.xz
 
 2. 安装依赖
-    >yum -y install zlib-devel bzip2-devel openssl-devel sqlite-devel libffi-devel 
+    >yum -y install zlib-devel bzip2-devel openssl-devel sqlite-devel libffi-devel libxml*
 
 3. 编译安装
 
