@@ -815,7 +815,7 @@ def getLimitupIndustry(request):
     tool_trade_date_hist_sina_df = ak.tool_trade_date_hist_sina()
     #最新交易日
     cur_time = tm.strftime('%H:%M',tm.localtime(tm.time()))
-    if tm.strptime(cur_time,'%H:%M') < tm.strptime('09:30','%H:%M') and is_trade_day(datetime.today()): #9点半之前还是显示前一天的情况，且必须是交易日
+    if tm.strptime(cur_time,'%H:%M') < tm.strptime('09:25','%H:%M') and is_trade_day(datetime.today()): #9点25之前还是显示前一天的情况，且必须是交易日
         today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-2,0]
     else:
         today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]
@@ -844,7 +844,7 @@ def getPreviousLimitUpCount(request):
     tool_trade_date_hist_sina_df = ak.tool_trade_date_hist_sina()
     #最新交易日
     cur_time = tm.strftime('%H:%M',tm.localtime(tm.time()))
-    if tm.strptime(cur_time,'%H:%M') < tm.strptime('09:30','%H:%M') and is_trade_day(datetime.today()):
+    if tm.strptime(cur_time,'%H:%M') < tm.strptime('09:25','%H:%M') and is_trade_day(datetime.today()):
         today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-2,0]
     else:
         today = tool_trade_date_hist_sina_df[tool_trade_date_hist_sina_df.trade_date <= datetime.today().date()].iloc[-1,0]

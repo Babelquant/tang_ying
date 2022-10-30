@@ -36,7 +36,7 @@ source /etc/profile
     > wget https://www.python.org/ftp/python/3.9.8/Python-3.9.8.tar.xz
 
 2. 安装依赖
-    >yum -y install zlib-devel bzip2-devel openssl-devel sqlite-devel gcc make
+    >yum -y install zlib-devel bzip2-devel openssl-devel sqlite-devel libffi-devel 
 
 3. 编译安装
 
@@ -52,25 +52,24 @@ source /etc/profile
             -DUSE_SSL -I$(SSL)/include -I$(SSL)/include/openssl \
             -L$(SSL)/lib -lssl -lcrypto
     ```
-    >./configure LDFLAGS="-L/usr/local/sqlite3/lib" CPPFLAGS="-I /usr/local/sqlite3/include" LD_RUN_PATH=/usr/local/sqlite3/lib 
+    >./configure LDFLAGS="-L /usr/local/sqlite3/lib" CPPFLAGS="-I /usr/local/sqlite3/include" LD_RUN_PATH=/usr/local/sqlite3/lib 
     
     `此参数是解决django.db.utils.NotSupportedError: deterministic=True requires SQLite 3.8.3报错的关键！`<br>
     make && make install
 
 ### 创建python3虚拟环境
 
-1. 下载python工具包virtualenv(用python3的pip)
+1. 下载virtualenv工具
     >pip3 install virtualenv
 
-2. 创建python虚拟环境(切换到py3env同级目录)
-    >python3 -m virtualenv py3env
+2. virtualenv 环境名
 
 3. 切换到虚拟环境
-    >source py3env/bin/activate
+    >source 环境名路径/bin/activate
 
 ### 安装django(4.0.6),uwsgi
 
->pip install django==4.0.6 uwsgi -i http://pypi.douban.com/simple --trusted-host pypi.douban.com
+>pip install uwsgi -i http://pypi.douban.com/simple --trusted-host pypi.douban.com
 
 ### 解压安装包，安装项目依赖
 >git clone https://github.com/Babelquant/tang_ying
@@ -157,3 +156,5 @@ make && make install
 >uwsgi -x tangying.xml 
 
     ps -ef|grep uwsgi 检查是否启动成功
+
+>pkill -f uwsgi -9  停止项目
